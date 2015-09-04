@@ -39,9 +39,10 @@ type Event struct { //message number: 21
 	Event        string
 	Event_type   string
 }
-type Events struct {
+
+/*type Events struct {
 	Events []Event
-}
+}*/
 type Record struct { //message number: 20
 	Timestamp                 uint32
 	Position_lat              int32
@@ -140,7 +141,7 @@ type FitFile struct {
 	FileId      File_id
 	FileCreator File_creator
 	DeviceInfo  Device_info
-	Event       Event
+	Events      []Event
 	Record      Record //these need to be array but []Record not working
 	Lap         Lap
 	//Session  session
@@ -259,6 +260,7 @@ func Parse(filename string) {
 	}
 
 	var def_message Def_message
+
 	var localMsgType byte
 
 	var glob_msge_num_0_read bool //flag when first global message num = 0 read as any that follow are probably errors
@@ -294,9 +296,9 @@ func Parse(filename string) {
 
 			def_message.number_of_fields = uint64(nof[0])
 
-			//print out debug info
+			//THIS DEBUG INFO SEEMS PRETTY ACCURATE - I'M GETTING CONFUSED WITH GLOBAL AND LOCAL MESSAGE TYPES...
 			fmt.Printf("\n[POS: %8d] ", uint64(dataSize)-k-1)
-			fmt.Print("DEFINITION MESSAGE, ") //--not  accurate yet...!
+			fmt.Print("DEFINITION MESSAGE, ")
 			fmt.Printf("VAL: %b", rHead[0])
 			fmt.Printf(" LOCAL MESSAGE TYPE: %#x", localMsgType)                   //last 4 bits
 			fmt.Printf(" GLOB MESSAGE NUM: %d", def_message.global_message_number) //only the aligned correctly definitions value is correct
@@ -339,7 +341,7 @@ func Parse(filename string) {
 				def_contents.size = int(size[0])
 				def_contents.base_type = int(baseType[0])
 				def_contents.offset = cumulative_size - uint64(size[0]) //start, not end of field data
-				fmt.Printf("\nFDN: %v\nSIZE: %v\nBASE_TYPE: %v\nOFFSET %v\n",
+				fmt.Printf("\nFIELD DEF NUMBER: %v\nSIZE: %v\nBASE_TYPE: %v\nOFFSET %v\n",
 					def_contents.field_definition_number,
 					def_contents.size,
 					def_contents.base_type,
@@ -365,19 +367,20 @@ func Parse(filename string) {
 
 			//set vars dependant on header type
 			if compHeader {
-				fmt.Printf("\n[POS: %8d] DATA MESSAGE, COMPRESSED HEADER, VAL: %b, LOCAL MESSAGE TYPE: %#x (%d), TIME OFFSET %02ds, GLOB_MEG_NUM %d",
-					uint64(dataSize)-k-1,
-					rHead[0],
-					rHead[0]&0x60>>5, //LMT is bits 5-6,
-					rHead[0]&0x60>>5, //LMT is bits 5-6,
-					rHead[0]&0x1F,    //time offset 0-4
-					def_message.global_message_number)
+				/*fmt.Printf("\n[POS: %8d] DATA MESSAGE, COMPRESSED HEADER, VAL: %b, LOCAL MESSAGE TYPE: %#x (%d), TIME OFFSET %02ds, GLOB_MSG_NUM %d",
+				uint64(dataSize)-k-1,
+				rHead[0],
+				rHead[0]&0x60>>5, //LMT is bits 5-6,
+				rHead[0]&0x60>>5, //LMT is bits 5-6,
+				rHead[0]&0x1F,    //time offset 0-4
+				def_message.global_message_number)*/
 
 				localMsgType = rHead[0] & 0x60 >> 5 //LMT is bits 5-6
 
 			} else {
 				localMsgType = rHead[0] & 0x1f //LMT is bits 0-3
 			}
+			fmt.Printf("\nUPCOMING DATA MESSAGE: LOCAL MESSAGE NUMBER:%d GLOB MESSAGE NUMBER %d", localMsgType, def_message.global_message_number)
 
 			fitFile.FileId.Serial_number = 123
 
@@ -438,7 +441,7 @@ func Parse(filename string) {
 
 			case 21: //event
 				//TODO extract contents into our data stucture
-
+				var event Event
 				var sumRecordsDataSize int
 				for _, val := range def_message.field_defs {
 					sumRecordsDataSize += val.size
@@ -446,27 +449,28 @@ func Parse(filename string) {
 					r.ReadAt(v, int64(headerSize+k+val.offset+1))
 					switch val.field_definition_number {
 					case 253:
-						fitFile.Event.Timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
-						t := time.Unix(fitFile.Event.Timestamp, 0)                                             //debug
-						fmt.Printf("EVENT TIMESTAMP: %d (rectified) %v\n", fitFile.Event.Timestamp, t)         //debug
+						event.Timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
+						t := time.Unix(event.Timestamp, 0)                                             //debug
+						fmt.Printf("EVENT TIMESTAMP: %d (rectified) %v\n", event.Timestamp, t)         //debug
 						break
 					case 4:
 						temp, _ := binary.Uvarint(v[0:1])
-						fitFile.Event.Time_trigger = maps.Time_trigger(uint64(temp))
-						fmt.Printf("EVENT TIME TRIGGER: %s\n", fitFile.Event.Time_trigger) //debug
+						event.Time_trigger = maps.Time_trigger(uint64(temp))
+						fmt.Printf("EVENT TIME TRIGGER: %s\n", event.Time_trigger) //debug
 						break
 					case 1:
 						temp, _ := binary.Uvarint(v[0:1])
-						fitFile.Event.Event_type = maps.Event_type(uint64(temp))
-						fmt.Printf("EVENT TYPE: %s\n", fitFile.Event.Event_type) //debug
+						event.Event_type = maps.Event_type(uint64(temp))
+						fmt.Printf("EVENT TYPE: %s\n", event.Event_type) //debug
 						break
 					case 0:
 						temp, _ := binary.Uvarint(v[0:1])
-						fitFile.Event.Event = maps.Event(uint64(temp))
-						fmt.Printf("EVENT: %s\n", fitFile.Event.Event) //debug
+						event.Event = maps.Event(uint64(temp))
+						fmt.Printf("EVENT: %s\n", event.Event) //debug
 					}
 
 				}
+				fitFile.Events = append(fitFile.Events, event)
 				def_message.field_defs = nil
 				k = skip(k, uint64(sumRecordsDataSize))
 				break
@@ -511,6 +515,7 @@ func Parse(filename string) {
 }
 func skip(iter, inc uint64) uint64 {
 	iter += inc
+	fmt.Printf("SKIPPING %d BYTES\n", inc)
 	return iter
 }
 
