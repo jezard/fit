@@ -3,9 +3,7 @@ package fit
 import (
 	"encoding/binary"
 	"fmt"
-	"github.com/jezard/jps-go/conf"
-	"github.com/jezard/jps-go/upload/maps"
-	"io"
+	"github.com/jezard/fit/maps"
 	"os"
 	"time"
 )
@@ -143,7 +141,6 @@ type FitFile struct {
 	//Activity activity
 }
 
-var config = conf.Configuration()
 var crc uint16
 
 func (*FitFile) UnmarshalBinary(buf []byte) error {
