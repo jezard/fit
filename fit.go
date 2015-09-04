@@ -132,22 +132,22 @@ type activity struct { //message number 34
 	event_group uint8
 }
 type FitFile struct {
-	FileId     File_id
-	DeviceInfo Device_info
-	Event      Event
-	Record     Record //these need to be array but []Record not working
-	Lap        Lap
+	FileId      File_id
+	FileCreator File_creator
+	DeviceInfo  Device_info
+	Event       Event
+	Record      Record //these need to be array but []Record not working
+	Lap         Lap
 	//Session  session
 	//Activity activity
 }
 
 var crc uint16
 
-func (*FitFile) UnmarshalBinary(buf []byte) error {
-	return nil
-}
+var count int
 
 func Parse(filename string) {
+	fmt.Printf("FUNCTION Parse() called: %v\n", time.Now())
 	const FIT_HDR_TYPE_MASK uint8 = 0x0F
 	crc = 0 //reset CRC
 
@@ -377,10 +377,11 @@ func Parse(filename string) {
 			fitFile.FileId.Serial_number = 123
 
 			//process data
+			fmt.Println("\n") //debug
 			switch def_message.global_message_number {
 
 			case 0: //file_id
-				fmt.Println("\n") //debug
+
 				//TODO extract contents into our data stucture
 
 				var sumRecordsDataSize int
@@ -428,14 +429,31 @@ func Parse(filename string) {
 				}
 				glob_msge_num_0_read = true
 				def_message.field_defs = nil
-				fmt.Printf("\nDATA MESSAGE [POS: %8d], [SIZE: %d]", uint64(dataSize)-k, sumRecordsDataSize) //not including 1 byte header
-				k = skip(k, uint64(sumRecordsDataSize))                                                     //move the reader to the end of the record data
-				//os.Exit(0)
-
+				k = skip(k, uint64(sumRecordsDataSize)) //move the reader to the end of the record data
 				break
-			case 1: //file_creator
+
+			case 49: //file_creator
 				//TODO extract contents into our data stucture
-				//break
+
+				var sumRecordsDataSize int
+				for _, val := range def_message.field_defs {
+					sumRecordsDataSize += val.size
+					v := make([]byte, val.size)
+					r.ReadAt(v, int64(headerSize+k+val.offset+1))
+					switch val.field_definition_number {
+					case 0:
+						fitFile.FileCreator.Software_version = binary.LittleEndian.Uint16(v[0:val.size])
+						fmt.Printf("SOFTWARE VERSION: %d\n", binary.LittleEndian.Uint16(v[0:val.size])) //debug
+						break
+					case 1:
+						fitFile.FileCreator.Hardware_version = v[0]
+						fmt.Printf("HARDWARE VERSION: %d\n", v[0]) //debug
+					}
+				}
+				def_message.field_defs = nil
+				k = skip(k, uint64(sumRecordsDataSize))
+				break
+
 			//TODO: need to add the remaining cases
 			default:
 				var sumRecordsDataSize int
@@ -444,8 +462,7 @@ func Parse(filename string) {
 				}
 				glob_msge_num_0_read = true
 				def_message.field_defs = nil
-				fmt.Printf("\nDATA MESSAGE [POS: %8d], [SIZE: %d]", uint64(dataSize)-k, sumRecordsDataSize) //not including 1 byte header
-				k = skip(k, uint64(sumRecordsDataSize))                                                     //move the reader to the end of the record data
+				k = skip(k, uint64(sumRecordsDataSize)) //move the reader to the end of the record data
 				//os.Exit(0)
 			}
 		}
