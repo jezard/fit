@@ -228,3 +228,64 @@ func Manufacturer(id uint16) string {
 
 	return manufacturer[id]
 }
+
+func Time_trigger(id uint64) string {
+	time_trigger := make(map[uint64]string)
+
+	time_trigger[0] = "MANUAL"
+	time_trigger[1] = "AUTO"
+	time_trigger[2] = "FITNESS_EQUIPMENT"
+
+	return time_trigger[id]
+}
+
+func Event_type(id uint64) string {
+	event_type := make(map[uint64]string)
+
+	event_type[0] = "START"
+	event_type[1] = "STOP"
+	event_type[2] = "CONSECUTIVE_DEPRECIATED"
+	event_type[3] = "MARKER"
+	event_type[4] = "STOP_ALL"
+	event_type[5] = "BEGIN_DEPRECIATED"
+	event_type[6] = "END_DEPRECIATED"
+	event_type[7] = "END_ALL_DEPRECIATED"
+	event_type[8] = "STOP_DISABLE"
+	event_type[9] = "STOP_DISABLE_ALL"
+
+	return event_type[id]
+}
+
+func Event(id uint64) string {
+	event := make(map[uint64]string)
+
+	event[0] = "TIMER"
+	event[3] = "WORKOUT"
+	event[4] = "WORKOUT_STEP"
+	event[5] = "POWER_DOWN"
+	event[6] = "POWER_UP"
+	event[7] = "OFF_COURSE"
+	event[8] = "SESSION"
+	event[9] = "LAP"
+	event[10] = "COURSE_POINT"
+	event[11] = "BATTERY"
+	event[12] = "VIRTUAL_PARTNER_PACE"
+	event[13] = "HR_HIGH_ALERT"
+	event[14] = "HR_LOW_ALERT"
+	event[15] = "SPEED_HIGH_ALERT"
+	event[16] = "SPEED_LOW_ALERT"
+	event[17] = "CAD_HIGH_ALERT"
+	event[18] = "CAD_LOW_ALERT"
+	event[19] = "POWER_HIGH_ALERT"
+	event[20] = "POWER_LOW_ALERT"
+	event[21] = "RECOVERY_HR"
+	event[22] = "BATTERY_LOW"
+	event[23] = "TIME_DURATION_ALERT"
+	event[24] = "DISTANCE_DURATION_ALERT"
+	event[25] = "CALORIE_DURATION_ALERT"
+	event[26] = "ACTIVITY"
+	event[27] = "FITNESS_EQUIPMENT"
+	event[28] = "LENGTH"
+
+	return event[id]
+}

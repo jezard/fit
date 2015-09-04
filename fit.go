@@ -34,8 +34,13 @@ type Device_info struct { //message number: 23
 	Battery_status     uint8
 }
 type Event struct { //message number: 21
-	Timestamp    uint32
-	Time_trigger uint32
+	Timestamp    int64 //not equal to the uint32 found in the fit file
+	Time_trigger string
+	Event        string
+	Event_type   string
+}
+type Events struct {
+	Events []Event
 }
 type Record struct { //message number: 20
 	Timestamp                 uint32
@@ -381,7 +386,6 @@ func Parse(filename string) {
 			switch def_message.global_message_number {
 
 			case 0: //file_id
-
 				//TODO extract contents into our data stucture
 
 				var sumRecordsDataSize int
@@ -432,6 +436,41 @@ func Parse(filename string) {
 				k = skip(k, uint64(sumRecordsDataSize)) //move the reader to the end of the record data
 				break
 
+			case 21: //event
+				//TODO extract contents into our data stucture
+
+				var sumRecordsDataSize int
+				for _, val := range def_message.field_defs {
+					sumRecordsDataSize += val.size
+					v := make([]byte, val.size)
+					r.ReadAt(v, int64(headerSize+k+val.offset+1))
+					switch val.field_definition_number {
+					case 253:
+						fitFile.Event.Timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
+						t := time.Unix(fitFile.Event.Timestamp, 0)                                             //debug
+						fmt.Printf("EVENT TIMESTAMP: %d (rectified) %v\n", fitFile.Event.Timestamp, t)         //debug
+						break
+					case 4:
+						temp, _ := binary.Uvarint(v[0:1])
+						fitFile.Event.Time_trigger = maps.Time_trigger(uint64(temp))
+						fmt.Printf("EVENT TIME TRIGGER: %s\n", fitFile.Event.Time_trigger) //debug
+						break
+					case 1:
+						temp, _ := binary.Uvarint(v[0:1])
+						fitFile.Event.Event_type = maps.Event_type(uint64(temp))
+						fmt.Printf("EVENT TYPE: %s\n", fitFile.Event.Event_type) //debug
+						break
+					case 0:
+						temp, _ := binary.Uvarint(v[0:1])
+						fitFile.Event.Event = maps.Event(uint64(temp))
+						fmt.Printf("EVENT: %s\n", fitFile.Event.Event) //debug
+					}
+
+				}
+				def_message.field_defs = nil
+				k = skip(k, uint64(sumRecordsDataSize))
+				break
+
 			case 49: //file_creator
 				//TODO extract contents into our data stucture
 
@@ -463,7 +502,6 @@ func Parse(filename string) {
 				glob_msge_num_0_read = true
 				def_message.field_defs = nil
 				k = skip(k, uint64(sumRecordsDataSize)) //move the reader to the end of the record data
-				//os.Exit(0)
 			}
 		}
 
