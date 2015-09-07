@@ -152,10 +152,15 @@ var crc uint16
 
 var count int
 
+var section string //debug - flag for record type
+
 func Parse(filename string) {
 	fmt.Printf("FUNCTION Parse() called: %v\n", time.Now())
 	const FIT_HDR_TYPE_MASK uint8 = 0x0F
 	crc = 0 //reset CRC
+
+	//map a local message type to a global message number !important
+	global_message_number := make(map[uint64]uint64)
 
 	//data structures
 	var fitFile FitFile
@@ -276,6 +281,7 @@ func Parse(filename string) {
 
 		//Is definition message? message type is bit 6
 		if rHead[0]>>6 == 1 { //01000000 -> 01
+			section = "DEFINITION"
 			localMsgType = rHead[0] & 0x1f
 
 			//get record content 4.2.1 of fit SDK
@@ -296,11 +302,22 @@ func Parse(filename string) {
 
 			def_message.number_of_fields = uint64(nof[0])
 
+			//map local message type to global message number if it hasn't been already
+			/*			var g uint64
+						for g = 0; g < uint64(len(global_message_number)); g++ {
+							if global_message_number[g] >= 0 {
+								continue
+							} else {
+								global_message_number[uint64(localMsgType)] = uint64(def_message.global_message_number)
+							}
+						}*/
+			global_message_number[uint64(localMsgType)] = uint64(def_message.global_message_number)
+
 			//THIS DEBUG INFO SEEMS PRETTY ACCURATE - I'M GETTING CONFUSED WITH GLOBAL AND LOCAL MESSAGE TYPES...
 			fmt.Printf("\n[POS: %8d] ", uint64(dataSize)-k-1)
-			fmt.Print("DEFINITION MESSAGE, ")
+			fmt.Print("DEFINITION MESSAGE HEADER, ")
 			fmt.Printf("VAL: %b", rHead[0])
-			fmt.Printf(" LOCAL MESSAGE TYPE: %#x", localMsgType)                   //last 4 bits
+			fmt.Printf(" LOCAL MESSAGE TYPE: %d", localMsgType)                    //last 4 bits
 			fmt.Printf(" GLOB MESSAGE NUM: %d", def_message.global_message_number) //only the aligned correctly definitions value is correct
 			fmt.Printf(" FIELDS: %d", def_message.number_of_fields)                //only the aligned correctly definitions value is correct
 
@@ -341,7 +358,7 @@ func Parse(filename string) {
 				def_contents.size = int(size[0])
 				def_contents.base_type = int(baseType[0])
 				def_contents.offset = cumulative_size - uint64(size[0]) //start, not end of field data
-				fmt.Printf("\nFIELD DEF NUMBER: %v\nSIZE: %v\nBASE_TYPE: %v\nOFFSET %v\n",
+				fmt.Printf("\n\tFIELD DEF NUMBER: %v\n\tSIZE: %v\n\tBASE_TYPE: %v\n\tOFFSET %v\n",
 					def_contents.field_definition_number,
 					def_contents.size,
 					def_contents.base_type,
@@ -351,6 +368,7 @@ func Parse(filename string) {
 				def_message.field_defs = append(def_message.field_defs, def_contents)
 
 			}
+			fmt.Printf("\t---------------\n\t%d BYTES \n", cumulative_size)
 
 			rc_length = uint64(5 + uint64(nof[0])*3) //combined length of fixed and varible record content field
 
@@ -358,6 +376,7 @@ func Parse(filename string) {
 
 			continue
 		} else { //10000000 (Data Message)
+			section = "DATA"
 			var compHeader bool
 
 			//check for compressed header
@@ -380,13 +399,13 @@ func Parse(filename string) {
 			} else {
 				localMsgType = rHead[0] & 0x1f //LMT is bits 0-3
 			}
-			fmt.Printf("\nUPCOMING DATA MESSAGE: LOCAL MESSAGE NUMBER:%d GLOB MESSAGE NUMBER %d", localMsgType, def_message.global_message_number)
 
-			fitFile.FileId.Serial_number = 123
+			fmt.Printf("\n[POS: %8d] DATA MESSAGE HEADER, VAL: %8b LOCAL MESSAGE TYPE: %d GLOB MESSAGE NUMBER: %d", uint64(dataSize)-k-1, rHead[0], localMsgType, global_message_number[uint64(localMsgType)])
 
 			//process data
 			fmt.Println("\n") //debug
-			switch def_message.global_message_number {
+
+			switch global_message_number[uint64(localMsgType)] { //look up the global message number using the local message type
 
 			case 0: //file_id
 				//TODO extract contents into our data stucture
@@ -402,34 +421,34 @@ func Parse(filename string) {
 						case 0:
 							fitFile.FileId.File_type = v[0]
 
-							fmt.Printf("FILE TYPE: %d\n", v[0]) //debug
+							fmt.Printf("\tFILE TYPE: %d\n", v[0]) //debug
 							break
 						case 1:
 							fitFile.FileId.Manufacturer = binary.LittleEndian.Uint16(v[0:val.size])
 
-							fmt.Printf("MANUFACTURER: %d (%s)\n", binary.LittleEndian.Uint16(v[0:val.size]), maps.Manufacturer(uint16(binary.LittleEndian.Uint16(v[0:val.size])))) //debug
+							fmt.Printf("\tMANUFACTURER: %d (%s)\n", binary.LittleEndian.Uint16(v[0:val.size]), maps.Manufacturer(uint16(binary.LittleEndian.Uint16(v[0:val.size])))) //debug
 							break
 						case 2:
 							fitFile.FileId.Product = binary.LittleEndian.Uint16(v[0:val.size])
 
-							fmt.Printf("PRODUCT: %d (%s)\n", binary.LittleEndian.Uint16(v[0:val.size]), maps.Product(uint16(binary.LittleEndian.Uint16(v[0:val.size])))) //debug
+							fmt.Printf("\tPRODUCT: %d (%s)\n", binary.LittleEndian.Uint16(v[0:val.size]), maps.Product(uint16(binary.LittleEndian.Uint16(v[0:val.size])))) //debug
 							break
 						case 3:
 							fitFile.FileId.Serial_number = binary.LittleEndian.Uint32(v[0:val.size])
 
-							fmt.Printf("SERIAL NUMBER: %d\n", binary.LittleEndian.Uint32(v[0:val.size])) //debug
+							fmt.Printf("\tSERIAL NUMBER: %d\n", binary.LittleEndian.Uint32(v[0:val.size])) //debug
 							break
 						case 4:
 							fitFile.FileId.Time_created = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
 
 							t := time.Unix(fitFile.FileId.Time_created, 0)
 
-							fmt.Printf("TIME CREATED: %d (rectified) %v\n", fitFile.FileId.Time_created, t) //debug
+							fmt.Printf("\tTIME CREATED: %d (rectified) %v\n", fitFile.FileId.Time_created, t) //debug
 							break
 						case 5:
 							fitFile.FileId.Number = binary.LittleEndian.Uint16(v[0:val.size])
 
-							fmt.Printf("NUMBER: %d\n", binary.LittleEndian.Uint16(v[0:val.size])) //debug
+							fmt.Printf("\tNUMBER: %d\n", binary.LittleEndian.Uint16(v[0:val.size])) //debug
 						}
 					}
 
@@ -451,22 +470,22 @@ func Parse(filename string) {
 					case 253:
 						event.Timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
 						t := time.Unix(event.Timestamp, 0)                                             //debug
-						fmt.Printf("EVENT TIMESTAMP: %d (rectified) %v\n", event.Timestamp, t)         //debug
+						fmt.Printf("\tEVENT TIMESTAMP: %d (rectified) %v\n", event.Timestamp, t)       //debug
 						break
 					case 4:
 						temp, _ := binary.Uvarint(v[0:1])
 						event.Time_trigger = maps.Time_trigger(uint64(temp))
-						fmt.Printf("EVENT TIME TRIGGER: %s\n", event.Time_trigger) //debug
+						fmt.Printf("\tEVENT TIME TRIGGER: %s\n", event.Time_trigger) //debug
 						break
 					case 1:
 						temp, _ := binary.Uvarint(v[0:1])
 						event.Event_type = maps.Event_type(uint64(temp))
-						fmt.Printf("EVENT TYPE: %s\n", event.Event_type) //debug
+						fmt.Printf("\tEVENT TYPE: %s\n", event.Event_type) //debug
 						break
 					case 0:
 						temp, _ := binary.Uvarint(v[0:1])
 						event.Event = maps.Event(uint64(temp))
-						fmt.Printf("EVENT: %s\n", event.Event) //debug
+						fmt.Printf("\tEVENT: %s\n", event.Event) //debug
 					}
 
 				}
@@ -486,11 +505,11 @@ func Parse(filename string) {
 					switch val.field_definition_number {
 					case 0:
 						fitFile.FileCreator.Software_version = binary.LittleEndian.Uint16(v[0:val.size])
-						fmt.Printf("SOFTWARE VERSION: %d\n", binary.LittleEndian.Uint16(v[0:val.size])) //debug
+						fmt.Printf("\tSOFTWARE VERSION: %d\n", binary.LittleEndian.Uint16(v[0:val.size])) //debug
 						break
 					case 1:
 						fitFile.FileCreator.Hardware_version = v[0]
-						fmt.Printf("HARDWARE VERSION: %d\n", v[0]) //debug
+						fmt.Printf("\tHARDWARE VERSION: %d\n", v[0]) //debug
 					}
 				}
 				def_message.field_defs = nil
@@ -499,12 +518,14 @@ func Parse(filename string) {
 
 			//TODO: need to add the remaining cases
 			default:
+				fmt.Println("\t>> UNKNOWN FIELD")
 				var sumRecordsDataSize int
 				for _, val := range def_message.field_defs {
 					sumRecordsDataSize += val.size
 				}
 				glob_msge_num_0_read = true
 				def_message.field_defs = nil
+				def_message.global_message_number = 0   //reset
 				k = skip(k, uint64(sumRecordsDataSize)) //move the reader to the end of the record data
 			}
 		}
@@ -515,7 +536,7 @@ func Parse(filename string) {
 }
 func skip(iter, inc uint64) uint64 {
 	iter += inc
-	fmt.Printf("SKIPPING %d BYTES\n", inc)
+	fmt.Printf("\nSKIPPING %s RECORD LENGTH OF %d BYTES >>\n=====================================================================\n", section, inc)
 	return iter
 }
 
