@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/jezard/fit/maps"
+	"math"
 	"os"
 	"time"
 )
@@ -39,20 +40,16 @@ type Event struct { //message number: 21
 	Event        string
 	Event_type   string
 }
-
-/*type Events struct {
-	Events []Event
-}*/
 type Record struct { //message number: 20
-	Timestamp                 uint32
-	Position_lat              int32
-	Position_long             int32
-	Distance                  uint32
+	Timestamp                 int64
+	Position_lat              float64
+	Position_long             float64
+	Distance                  float64
 	Time_from_course          int32
 	Compressed_speed_distance uint8
 	Heart_rate                uint8
-	Altitude                  uint16
-	Speed                     uint16
+	Altitude                  float64
+	Speed                     float64
 	Power                     uint16
 	Grade                     int16
 	Cadence                   uint8
@@ -142,7 +139,7 @@ type FitFile struct {
 	FileCreator File_creator
 	DeviceInfo  Device_info
 	Events      []Event
-	Record      Record //these need to be array but []Record not working
+	Records     []Record //these need to be array but []Record not working
 	Lap         Lap
 	//Session  session
 	//Activity activity
@@ -154,7 +151,7 @@ var count int
 
 var section string //debug - flag for record type
 
-func Parse(filename string) {
+func Parse(filename string) FitFile {
 	fmt.Printf("FUNCTION Parse() called: %v\n", time.Now())
 	const FIT_HDR_TYPE_MASK uint8 = 0x0F
 	crc = 0 //reset CRC
@@ -368,6 +365,7 @@ func Parse(filename string) {
 		} else { //10000000 (Data Message)
 			section = "DATA"
 			var compHeader bool
+			def_message.field_defs = nil
 
 			//check for compressed header
 			if rHead[0]>>7 == 1 { //is compressed header
@@ -441,12 +439,74 @@ func Parse(filename string) {
 
 				}
 				glob_msge_num_0_read = true
-				def_message.field_defs = nil
+				//def_message.field_defs = nil
 				k = skip(k, uint64(sumRecordsDataSize)) //move the reader to the end of the record data
 				break
 
+			case 20: //Record!!!
+				var record Record
+				var sumRecordsDataSize int
+				for _, val := range definition[uint64(localMsgType)].field_defs {
+					sumRecordsDataSize += val.size
+					v := make([]byte, val.size)
+					r.ReadAt(v, int64(headerSize+k+val.offset+1))
+					switch val.field_definition_number {
+					case 253:
+						record.Timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
+						t := time.Unix(record.Timestamp, 0)                                             //debug
+						fmt.Printf("\tRECORD TIMESTAMP: %d (rectified) %v\n", record.Timestamp, t)      //debug
+						break
+					case 0:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						record.Position_lat = semicircles * (180 / math.Pow(2, 31))
+						fmt.Printf("\tLAT: %f °\n", record.Position_lat) //debug
+						break
+					case 1:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						record.Position_long = semicircles * (180 / math.Pow(2, 31))
+						fmt.Printf("\tLON: %f °\n", record.Position_long) //debug
+						break
+					case 2:
+						record.Altitude = (float64(binary.LittleEndian.Uint16(v[0:val.size])) / 5) - 500
+						fmt.Printf("\tALTITUDE: %f M\n", record.Altitude) //debug
+						break
+					case 3:
+						temp, _ := binary.Uvarint(v[0:val.size])
+						record.Heart_rate = uint8(temp)
+						fmt.Printf("\tHEART RATE: %d BPM\n", record.Heart_rate) //debug
+						break
+					case 4:
+						temp, _ := binary.Uvarint(v[0:val.size])
+						record.Cadence = uint8(temp)
+						fmt.Printf("\tCADENCE: %d RPM\n", record.Cadence) //debug
+						break
+					case 5:
+						record.Distance = float64(binary.LittleEndian.Uint32(v[0:val.size])) / 100
+						fmt.Printf("\tDISTANCE: %f M\n", record.Distance) //debug
+						break
+					case 6:
+						record.Speed = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 1000
+						fmt.Printf("\tSPEED: %f M/S\n", record.Speed) //debug
+						break
+					case 7:
+						record.Power = binary.LittleEndian.Uint16(v[0:val.size])
+						fmt.Printf("\tPOWER: %d W\n", record.Power) //debug
+						break
+					case 13:
+						temp, _ := binary.Uvarint(v[0:val.size])
+						record.Temperature = int8(temp)
+						fmt.Printf("\tTEMP: %d °C\n", record.Temperature) //debug
+						break
+
+					}
+
+				}
+				fitFile.Records = append(fitFile.Records, record)
+				//def_message.field_defs = nil
+				k = skip(k, uint64(sumRecordsDataSize))
+				break
+
 			case 21: //event
-				//TODO extract contents into our data stucture
 				var event Event
 				var sumRecordsDataSize int
 				for _, val := range definition[uint64(localMsgType)].field_defs {
@@ -477,13 +537,11 @@ func Parse(filename string) {
 
 				}
 				fitFile.Events = append(fitFile.Events, event)
-				def_message.field_defs = nil
+				//def_message.field_defs = nil
 				k = skip(k, uint64(sumRecordsDataSize))
 				break
 
 			case 49: //file_creator
-				//TODO extract contents into our data stucture
-
 				var sumRecordsDataSize int
 				for _, val := range definition[uint64(localMsgType)].field_defs {
 					sumRecordsDataSize += val.size
@@ -499,7 +557,7 @@ func Parse(filename string) {
 						fmt.Printf("\tHARDWARE VERSION: %d\n", v[0]) //debug
 					}
 				}
-				def_message.field_defs = nil
+				//def_message.field_defs = nil
 				k = skip(k, uint64(sumRecordsDataSize))
 				break
 
@@ -511,13 +569,12 @@ func Parse(filename string) {
 					sumRecordsDataSize += val.size
 				}
 				glob_msge_num_0_read = true
-				def_message.field_defs = nil
 				def_message.global_message_number = 0   //reset
 				k = skip(k, uint64(sumRecordsDataSize)) //move the reader to the end of the record data
 			}
 		}
 	}
-	fmt.Printf("\n\n%#v", definition)
+	return fitFile
 
 }
 func skip(iter, inc uint64) uint64 {
