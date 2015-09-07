@@ -159,9 +159,6 @@ func Parse(filename string) {
 	const FIT_HDR_TYPE_MASK uint8 = 0x0F
 	crc = 0 //reset CRC
 
-	//map a local message type to a global message number !important
-	global_message_number := make(map[uint64]uint64)
-
 	//data structures
 	var fitFile FitFile
 
@@ -263,6 +260,8 @@ func Parse(filename string) {
 		number_of_fields      uint64
 		field_defs            []Field_def
 	}
+	//map definition info to a local message type and global message number !important
+	definition := make(map[uint64]Def_message)
 
 	var def_message Def_message
 
@@ -301,17 +300,6 @@ func Parse(filename string) {
 			r.ReadAt(nof, int64(headerSize+k+5))
 
 			def_message.number_of_fields = uint64(nof[0])
-
-			//map local message type to global message number if it hasn't been already
-			/*			var g uint64
-						for g = 0; g < uint64(len(global_message_number)); g++ {
-							if global_message_number[g] >= 0 {
-								continue
-							} else {
-								global_message_number[uint64(localMsgType)] = uint64(def_message.global_message_number)
-							}
-						}*/
-			global_message_number[uint64(localMsgType)] = uint64(def_message.global_message_number)
 
 			//THIS DEBUG INFO SEEMS PRETTY ACCURATE - I'M GETTING CONFUSED WITH GLOBAL AND LOCAL MESSAGE TYPES...
 			fmt.Printf("\n[POS: %8d] ", uint64(dataSize)-k-1)
@@ -368,6 +356,8 @@ func Parse(filename string) {
 				def_message.field_defs = append(def_message.field_defs, def_contents)
 
 			}
+			//store field definitions against local message type
+			definition[uint64(localMsgType)] = def_message //of course this gets overwritten if localMsgType has been used before
 			fmt.Printf("\t---------------\n\t%d BYTES \n", cumulative_size)
 
 			rc_length = uint64(5 + uint64(nof[0])*3) //combined length of fixed and varible record content field
@@ -386,13 +376,8 @@ func Parse(filename string) {
 
 			//set vars dependant on header type
 			if compHeader {
-				/*fmt.Printf("\n[POS: %8d] DATA MESSAGE, COMPRESSED HEADER, VAL: %b, LOCAL MESSAGE TYPE: %#x (%d), TIME OFFSET %02ds, GLOB_MSG_NUM %d",
-				uint64(dataSize)-k-1,
-				rHead[0],
-				rHead[0]&0x60>>5, //LMT is bits 5-6,
-				rHead[0]&0x60>>5, //LMT is bits 5-6,
-				rHead[0]&0x1F,    //time offset 0-4
-				def_message.global_message_number)*/
+
+				//timeOffset := rHead[0]&0x1F,    //time offset 0-4
 
 				localMsgType = rHead[0] & 0x60 >> 5 //LMT is bits 5-6
 
@@ -400,18 +385,20 @@ func Parse(filename string) {
 				localMsgType = rHead[0] & 0x1f //LMT is bits 0-3
 			}
 
-			fmt.Printf("\n[POS: %8d] DATA MESSAGE HEADER, VAL: %8b LOCAL MESSAGE TYPE: %d GLOB MESSAGE NUMBER: %d", uint64(dataSize)-k-1, rHead[0], localMsgType, global_message_number[uint64(localMsgType)])
+			fmt.Printf("\n[POS: %8d] DATA MESSAGE HEADER, VAL: %8b LOCAL MESSAGE TYPE: %d GLOB MESSAGE NUMBER: %d", uint64(dataSize)-k-1, rHead[0], localMsgType, definition[uint64(localMsgType)].global_message_number)
 
 			//process data
 			fmt.Println("\n") //debug
 
-			switch global_message_number[uint64(localMsgType)] { //look up the global message number using the local message type
+			global_message_number := definition[uint64(localMsgType)].global_message_number
+
+			switch global_message_number { //look up the global message number using the local message type
 
 			case 0: //file_id
 				//TODO extract contents into our data stucture
 
 				var sumRecordsDataSize int
-				for _, val := range def_message.field_defs {
+				for _, val := range definition[uint64(localMsgType)].field_defs {
 					sumRecordsDataSize += val.size
 
 					if !glob_msge_num_0_read {
@@ -462,7 +449,7 @@ func Parse(filename string) {
 				//TODO extract contents into our data stucture
 				var event Event
 				var sumRecordsDataSize int
-				for _, val := range def_message.field_defs {
+				for _, val := range definition[uint64(localMsgType)].field_defs {
 					sumRecordsDataSize += val.size
 					v := make([]byte, val.size)
 					r.ReadAt(v, int64(headerSize+k+val.offset+1))
@@ -498,7 +485,7 @@ func Parse(filename string) {
 				//TODO extract contents into our data stucture
 
 				var sumRecordsDataSize int
-				for _, val := range def_message.field_defs {
+				for _, val := range definition[uint64(localMsgType)].field_defs {
 					sumRecordsDataSize += val.size
 					v := make([]byte, val.size)
 					r.ReadAt(v, int64(headerSize+k+val.offset+1))
@@ -520,7 +507,7 @@ func Parse(filename string) {
 			default:
 				fmt.Println("\t>> UNKNOWN FIELD")
 				var sumRecordsDataSize int
-				for _, val := range def_message.field_defs {
+				for _, val := range definition[uint64(localMsgType)].field_defs {
 					sumRecordsDataSize += val.size
 				}
 				glob_msge_num_0_read = true
@@ -529,9 +516,8 @@ func Parse(filename string) {
 				k = skip(k, uint64(sumRecordsDataSize)) //move the reader to the end of the record data
 			}
 		}
-
 	}
-	fmt.Printf("\n\n%v", fitFile)
+	fmt.Printf("\n\n%#v", definition)
 
 }
 func skip(iter, inc uint64) uint64 {
