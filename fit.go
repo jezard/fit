@@ -58,81 +58,74 @@ type Record struct { //message number: 20
 	Temperature               int8
 }
 type Lap struct { //message number: 19
-	Timestamp           uint32
-	Start_time          uint32
-	Start_position_lat  int32
-	Start_position_long int32
-	End_position_lat    int32
-	End_position_long   int32
-	Total_elapsed_time  uint32
-	Total_timer_time    uint32
-	Total_distance      uint32
-	Total_cycles        uint32
-	Message_index       uint16
-	Total_calories      uint16
-	Total_fat_calories  uint16
-	Avg_speed           uint16
-	Max_speed           uint16
-	Avg_power           uint16
-	Max_power           uint16
-	Total_ascent        uint16
-	Total_descent       uint16
-	//event (0-1-ENUM): lap (9)
-	//event_type (1-1-ENUM): stop (1)
-	Avg_heart_rate uint8
-	Max_heart_rate uint8
-	Avg_cadence    uint8
-	Max_cadence    uint8
-	//intensity (23-1-ENUM): active (0)
-	//lap_trigger (24-1-ENUM): manual (0)
-	//sport (25-1-ENUM): cycling (2)
-	Event_group uint8
+	Timestamp              int64
+	Start_time             int64
+	Start_position_lat     float64
+	Start_position_long    float64
+	End_position_lat       float64
+	End_position_long      float64
+	Total_elapsed_time     float64
+	Total_timer_time       float64
+	Total_distance         float64
+	Total_cycles           uint32
+	Total_work             uint32
+	Message_index          uint16
+	Total_calories         uint16
+	Total_fat_calories     uint16
+	Avg_speed              float64
+	Max_speed              float64
+	Avg_power              uint16
+	Max_power              uint16
+	Norm_power             uint16
+	Left_right_balance_100 float64
+	Total_ascent           uint16
+	Total_descent          uint16
+	Avg_heart_rate         uint8
+	Max_heart_rate         uint8
+	Avg_cadence            uint8
+	Max_cadence            uint8
+	Event_group            uint8
+	Event                  string
+	Event_type             string
+	Intensity              uint8
 }
-type session struct { //message number 18
-	timestamp           uint32
-	start_time          uint32
-	start_position_lat  int32
-	start_position_long int32
-	total_elapsed_time  uint32
-	total_timer_time    uint32
-	total_distance      uint32
-	total_cycles        uint32
-	nec_lat             int32
-	nec_long            int32
-	swc_lat             int32
-	swc_long            int32
-	message_index       uint16
-	total_calories      uint16
-	total_fat_calories  uint16
-	avg_speed           uint16
-	max_speed           uint16
-	avg_power           uint16
-	max_power           uint16
-	total_ascent        uint16
-	total_descent       uint16
-	first_lap_index     uint16
-	num_laps            uint16
-	/*  event (0-1-ENUM): session (8)
-	    event_type (1-1-ENUM): stop (1)
-	    sport (5-1-ENUM): cycling (2)
-	    sub_sport (6-1-ENUM): indoor_cycling (6)*/
+type Session struct { //message number 18
+	timestamp             uint32
+	start_time            uint32
+	start_position_lat    int32
+	start_position_long   int32
+	total_elapsed_time    uint32
+	total_timer_time      uint32
+	total_distance        uint32
+	total_cycles          uint32
+	nec_lat               int32
+	nec_long              int32
+	swc_lat               int32
+	swc_long              int32
+	message_index         uint16
+	total_calories        uint16
+	total_fat_calories    uint16
+	avg_speed             uint16
+	max_speed             uint16
+	avg_power             uint16
+	max_power             uint16
+	total_ascent          uint16
+	total_descent         uint16
+	first_lap_index       uint16
+	num_laps              uint16
 	avg_heart_rate        uint8
 	max_heart_rate        uint8
 	avg_cadence           uint8
 	max_cadence           uint8
 	total_training_effect uint8
 	event_group           uint8
-	/*  trigger (28-1-ENUM): activity_end (0)*/
 }
 type activity struct { //message number 34
 	timestamp        uint32
 	total_timer_time uint32
 	local_timestamp  uint32
 	num_sessions     uint16
-	/*  type (2-1-ENUM): manual (0)
-	    event (3-1-ENUM): activity (26)
-	    event_type (4-1-ENUM): stop (1)*/
-	event_group uint8
+	event_group      uint8
 }
 type FitFile struct {
 	FileId      File_id
@@ -140,7 +133,7 @@ type FitFile struct {
 	DeviceInfo  Device_info
 	Events      []Event
 	Records     []Record //these need to be array but []Record not working
-	Lap         Lap
+	Laps        []Lap
 	//Session  session
 	//Activity activity
 }
@@ -149,10 +142,15 @@ var crc uint16
 
 var count int
 
-var section string //debug - flag for record type
+var section string //verbose_mode - flag for record type
 
-func Parse(filename string) FitFile {
-	fmt.Printf("FUNCTION Parse() called: %v\n", time.Now())
+var verbose_mode bool
+
+func Parse(filename string, show_verbose_mode bool) FitFile {
+	verbose_mode = show_verbose_mode
+	if verbose_mode {
+		fmt.Printf("FUNCTION Parse() called: %v\n", time.Now())
+	} //verbose_mode
 	const FIT_HDR_TYPE_MASK uint8 = 0x0F
 	crc = 0 //reset CRC
 
@@ -173,7 +171,9 @@ func Parse(filename string) FitFile {
 	b2 := make([]byte, 2)         //for crc
 	n2, err := f.ReadAt(b2, fl-2) //last 2 bytes of file
 
-	fmt.Printf("%d (Header) %d (crc) %d (file size) bytes\n", n1, n2, fl)
+	if verbose_mode {
+		fmt.Printf("%d (Header) %d (crc) %d (file size) bytes\n", n1, n2, fl)
+	} //verbose_mode
 
 	/*****
 	*
@@ -184,21 +184,31 @@ func Parse(filename string) FitFile {
 	headerSize, _ := binary.Uvarint(b1[0:1]) //convert 1 byte to uint64
 
 	//Indicates the length of this file header including header size. Minimum size is 12. This may be increased in future to add additional optional information.
-	fmt.Printf("Header Size: %v\n", headerSize)
+	if verbose_mode {
+		fmt.Printf("Header Size: %v\n", headerSize)
+	} //verbose_mode
 
 	//Protocol version number as provided in SDK
-	fmt.Printf("protocol v.: %v\n", b1[1:2])
+	if verbose_mode {
+		fmt.Printf("protocol v.: %v\n", b1[1:2])
+	} //verbose_mode
 
 	//Profile version number as provided in SDK
 	pv := binary.LittleEndian.Uint16(b1[2:4])
-	fmt.Printf("profile v. : %v\n", pv)
+	if verbose_mode {
+		fmt.Printf("profile v. : %v\n", pv)
+	} //verbose_mode
 
 	//Length of the data records section in bytes (not including Header or CRC)
 	dataSize := binary.LittleEndian.Uint32(b1[4:8])
-	fmt.Printf("Data Size  : %v bytes\n", dataSize)
+	if verbose_mode {
+		fmt.Printf("Data Size  : %v bytes\n", dataSize)
+	} //verbose_mode
 
 	//ASCII values for “.FIT”. A FIT binary file opened with a text editor will contain a readable “.FIT” in the first line.
-	fmt.Printf("Ascii      : %s%s%s%s\n", b1[8:9], b1[9:10], b1[10:11], b1[11:12])
+	if verbose_mode {
+		fmt.Printf("Ascii      : %s%s%s%s\n", b1[8:9], b1[9:10], b1[10:11], b1[11:12])
+	} //verbose_mode
 
 	/*****
 	*
@@ -211,10 +221,14 @@ func Parse(filename string) FitFile {
 		if _crc == 0x0000 {
 			_crc = binary.LittleEndian.Uint16(b2[0:2]) //otherwise calcuate it from the final 2 bytes
 		}
-		fmt.Printf("Expected CRC: %x\n", _crc) //still need to check this against a calculated value
+		if verbose_mode {
+			fmt.Printf("Expected CRC: %x\n", _crc)
+		} //verbose_mode
 	} else {
 		_crc := binary.LittleEndian.Uint16(b2[0:2])
-		fmt.Printf("Expected CRC: %x\n", _crc) //still need to check this against a calculated value
+		if verbose_mode {
+			fmt.Printf("Expected CRC: %x\n", _crc)
+		} //verbose_mode
 	}
 	//close the file
 	f.Close()
@@ -231,7 +245,9 @@ func Parse(filename string) FitFile {
 
 	}
 	nf.Close()
-	fmt.Printf("Calculated CRC: %x \n", crc)
+	if verbose_mode {
+		fmt.Printf("Calculated CRC: %x \n", crc)
+	} //verbose_mode
 
 	/*****
 	*
@@ -298,13 +314,19 @@ func Parse(filename string) FitFile {
 
 			def_message.number_of_fields = uint64(nof[0])
 
-			//THIS DEBUG INFO SEEMS PRETTY ACCURATE - I'M GETTING CONFUSED WITH GLOBAL AND LOCAL MESSAGE TYPES...
-			fmt.Printf("\n[POS: %8d] ", uint64(dataSize)-k-1)
-			fmt.Print("DEFINITION MESSAGE HEADER, ")
-			fmt.Printf("VAL: %b", rHead[0])
-			fmt.Printf(" LOCAL MESSAGE TYPE: %d", localMsgType)                    //last 4 bits
-			fmt.Printf(" GLOB MESSAGE NUM: %d", def_message.global_message_number) //only the aligned correctly definitions value is correct
-			fmt.Printf(" FIELDS: %d", def_message.number_of_fields)                //only the aligned correctly definitions value is correct
+			//THIS verbose_mode INFO SEEMS PRETTY ACCURATE - I'M GETTING CONFUSED WITH GLOBAL AND LOCAL MESSAGE TYPES...
+			if verbose_mode {
+				fmt.Printf("\n[POS: %8d] ", uint64(dataSize)-k-1) //verbose_mode
+				fmt.Print("DEFINITION MESSAGE HEADER, ")          //verbose_mode
+
+				fmt.Printf("VAL: %b", rHead[0]) //verbose_mode
+
+				fmt.Printf(" LOCAL MESSAGE TYPE: %d", localMsgType) //verbose_mode
+
+				fmt.Printf(" GLOB MESSAGE NUM: %d", def_message.global_message_number)
+
+				fmt.Printf(" FIELDS: %d", def_message.number_of_fields) //verbose_mode
+			}
 
 			//field definitions
 			var f uint64
@@ -343,11 +365,13 @@ func Parse(filename string) FitFile {
 				def_contents.size = int(size[0])
 				def_contents.base_type = int(baseType[0])
 				def_contents.offset = cumulative_size - uint64(size[0]) //start, not end of field data
-				fmt.Printf("\n\tFIELD DEF NUMBER: %v\n\tSIZE: %v\n\tBASE_TYPE: %v\n\tOFFSET %v\n",
-					def_contents.field_definition_number,
-					def_contents.size,
-					def_contents.base_type,
-					def_contents.offset)
+				if verbose_mode {
+					fmt.Printf("\n\tFIELD DEF NUMBER: %v\n\tSIZE: %v\n\tBASE_TYPE: %v\n\tOFFSET %v\n",
+						def_contents.field_definition_number,
+						def_contents.size,
+						def_contents.base_type,
+						def_contents.offset)
+				} //verbose_mode
 
 				//we will need a means of temporarily storing the all the fields definition data so that it can be used to retrieve the record data later
 				def_message.field_defs = append(def_message.field_defs, def_contents)
@@ -355,8 +379,9 @@ func Parse(filename string) FitFile {
 			}
 			//store field definitions against local message type
 			definition[uint64(localMsgType)] = def_message //of course this gets overwritten if localMsgType has been used before
-			fmt.Printf("\t---------------\n\t%d BYTES \n", cumulative_size)
-
+			if verbose_mode {
+				fmt.Printf("\t---------------\n\t%d BYTES \n", cumulative_size)
+			} //verbose_mode
 			rc_length = uint64(5 + uint64(nof[0])*3) //combined length of fixed and varible record content field
 
 			k = skip(k, rc_length) //move the pointer to the end of the field definition
@@ -383,18 +408,18 @@ func Parse(filename string) FitFile {
 				localMsgType = rHead[0] & 0x1f //LMT is bits 0-3
 			}
 
-			fmt.Printf("\n[POS: %8d] DATA MESSAGE HEADER, VAL: %8b LOCAL MESSAGE TYPE: %d GLOB MESSAGE NUMBER: %d", uint64(dataSize)-k-1, rHead[0], localMsgType, definition[uint64(localMsgType)].global_message_number)
-
-			//process data
-			fmt.Println("\n") //debug
+			if verbose_mode {
+				fmt.Printf("\n[POS: %8d] DATA MESSAGE HEADER, VAL: %8b LOCAL MESSAGE TYPE: %d GLOB MESSAGE NUMBER: %d", uint64(dataSize)-k-1, rHead[0], localMsgType, definition[uint64(localMsgType)].global_message_number)
+				//process data
+				fmt.Println("\n")
+			} //verbose_mode
 
 			global_message_number := definition[uint64(localMsgType)].global_message_number
 
+			//Here's where we extract the data from the .fit activity file and add it to our FitFile data structure
 			switch global_message_number { //look up the global message number using the local message type
 
 			case 0: //file_id
-				//TODO extract contents into our data stucture
-
 				var sumRecordsDataSize int
 				for _, val := range definition[uint64(localMsgType)].field_defs {
 					sumRecordsDataSize += val.size
@@ -405,35 +430,40 @@ func Parse(filename string) FitFile {
 						switch val.field_definition_number {
 						case 0:
 							fitFile.FileId.File_type = v[0]
-
-							fmt.Printf("\tFILE TYPE: %d\n", v[0]) //debug
+							if verbose_mode {
+								fmt.Printf("\tFILE TYPE: %d\n", v[0])
+							} //verbose_mode
 							break
 						case 1:
 							fitFile.FileId.Manufacturer = binary.LittleEndian.Uint16(v[0:val.size])
-
-							fmt.Printf("\tMANUFACTURER: %d (%s)\n", binary.LittleEndian.Uint16(v[0:val.size]), maps.Manufacturer(uint16(binary.LittleEndian.Uint16(v[0:val.size])))) //debug
+							if verbose_mode {
+								fmt.Printf("\tMANUFACTURER: %d (%s)\n", binary.LittleEndian.Uint16(v[0:val.size]), maps.Manufacturer(uint16(binary.LittleEndian.Uint16(v[0:val.size]))))
+							} //verbose_mode
 							break
 						case 2:
 							fitFile.FileId.Product = binary.LittleEndian.Uint16(v[0:val.size])
-
-							fmt.Printf("\tPRODUCT: %d (%s)\n", binary.LittleEndian.Uint16(v[0:val.size]), maps.Product(uint16(binary.LittleEndian.Uint16(v[0:val.size])))) //debug
+							if verbose_mode {
+								fmt.Printf("\tPRODUCT: %d (%s)\n", binary.LittleEndian.Uint16(v[0:val.size]), maps.Product(uint16(binary.LittleEndian.Uint16(v[0:val.size]))))
+							} //verbose_mode
 							break
 						case 3:
 							fitFile.FileId.Serial_number = binary.LittleEndian.Uint32(v[0:val.size])
-
-							fmt.Printf("\tSERIAL NUMBER: %d\n", binary.LittleEndian.Uint32(v[0:val.size])) //debug
+							if verbose_mode {
+								fmt.Printf("\tSERIAL NUMBER: %d\n", binary.LittleEndian.Uint32(v[0:val.size]))
+							} //verbose_mode
 							break
 						case 4:
 							fitFile.FileId.Time_created = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
-
 							t := time.Unix(fitFile.FileId.Time_created, 0)
-
-							fmt.Printf("\tTIME CREATED: %d (rectified) %v\n", fitFile.FileId.Time_created, t) //debug
+							if verbose_mode {
+								fmt.Printf("\tTIME CREATED: %d (rectified) %v\n", fitFile.FileId.Time_created, t)
+							} //verbose_mode
 							break
 						case 5:
 							fitFile.FileId.Number = binary.LittleEndian.Uint16(v[0:val.size])
-
-							fmt.Printf("\tNUMBER: %d\n", binary.LittleEndian.Uint16(v[0:val.size])) //debug
+							if verbose_mode {
+								fmt.Printf("\tNUMBER: %d\n", binary.LittleEndian.Uint16(v[0:val.size]))
+							} //verbose_mode
 						}
 					}
 
@@ -441,6 +471,210 @@ func Parse(filename string) FitFile {
 				glob_msge_num_0_read = true
 				//def_message.field_defs = nil
 				k = skip(k, uint64(sumRecordsDataSize)) //move the reader to the end of the record data
+				break
+
+			case 19: //lap
+				var lap Lap
+				var sumRecordsDataSize int
+				for _, val := range definition[uint64(localMsgType)].field_defs {
+					sumRecordsDataSize += val.size
+					v := make([]byte, val.size)
+					r.ReadAt(v, int64(headerSize+k+val.offset+1))
+					switch val.field_definition_number {
+					case 253:
+						lap.Timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
+						t := time.Unix(lap.Timestamp, 0)
+						if verbose_mode {
+							fmt.Printf("\tLAP TIMESTAMP: %d (rectified) %v\n", lap.Timestamp, t)
+						} //verbose_mode
+						break
+					case 2:
+						lap.Start_time = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
+						t := time.Unix(lap.Start_time, 0)
+						if verbose_mode {
+							fmt.Printf("\tLAP START TIME: %d (rectified) %v\n", lap.Start_time, t)
+						} //verbose_mode
+						break
+					case 3:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						lap.Start_position_lat = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tLAP START LAT: %f°\n", lap.Start_position_lat)
+						} //verbose_mode
+						break
+					case 4:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						lap.Start_position_long = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tLAP START LON: %f°\n", lap.Start_position_long)
+						} //verbose_mode
+						break
+					case 5:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						lap.End_position_lat = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tLAP END LAT: %f°\n", lap.End_position_lat)
+						} //verbose_mode
+						break
+					case 6:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						lap.End_position_long = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tLAP END LON: %f°\n", lap.End_position_long)
+						} //verbose_mode
+						break
+					case 7:
+						lap.Total_elapsed_time = float64(binary.LittleEndian.Uint32(v[0:val.size])) / 1000
+						if verbose_mode {
+							fmt.Printf("\tLAP TOTAL ELAPSED TIME: %fs\n", lap.Total_elapsed_time)
+						} //verbose_mode
+						break
+					case 8:
+						lap.Total_timer_time = float64(binary.LittleEndian.Uint32(v[0:val.size])) / 1000
+						if verbose_mode {
+							fmt.Printf("\tLAP TOTAL TIMER TIME: %fs\n", lap.Total_timer_time)
+						} //verbose_mode
+						break
+					case 9:
+						lap.Total_distance = float64(binary.LittleEndian.Uint32(v[0:val.size])) / 100
+						if verbose_mode {
+							fmt.Printf("\tLAP TOTAL DISTANCE: %f M\n", lap.Total_distance)
+						} //verbose_mode
+						break
+					case 10:
+						lap.Total_cycles = binary.LittleEndian.Uint32(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tLAP TOTAL CYCLES: %d Cycles\n", lap.Total_cycles)
+						} //verbose_mode
+						break
+					case 41:
+						lap.Total_work = binary.LittleEndian.Uint32(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tLAP TOTAL WORK: %d J\n", lap.Total_work)
+						} //verbose_mode
+						break
+					case 254:
+						lap.Message_index = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tLAP MESSAGE INDEX: %d\n", lap.Message_index)
+						} //verbose_mode
+						break
+					case 11:
+						lap.Total_calories = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tLAP TOTAL CALORIES: %d Kcal\n", lap.Total_calories)
+						} //verbose_mode
+						break
+					case 12:
+						lap.Total_fat_calories = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tLAP TOTAL FAT CALORIES: %d Kcal\n", lap.Total_fat_calories)
+						} //verbose_mode
+						break
+					case 13:
+						lap.Avg_speed = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 1000
+						if verbose_mode {
+							fmt.Printf("\tLAP AVERAGE SPEED: %f M/S\n", lap.Avg_speed)
+						} //verbose_mode
+						break
+					case 14:
+						lap.Max_speed = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 1000
+						if verbose_mode {
+							fmt.Printf("\tLAP AVERAGE SPEED: %f M/S\n", lap.Max_speed)
+						} //verbose_mode
+						break
+					case 19:
+						lap.Avg_power = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tLAP AVERAGE POWER %d W\n", lap.Avg_power)
+						} //verbose_mode
+						break
+					case 20:
+						lap.Max_power = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tLAP MAX POWER %d W\n", lap.Max_power)
+						} //verbose_mode
+						break
+					case 21:
+						lap.Total_ascent = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tLAP TOTAL ASCENT %d M\n", lap.Total_ascent)
+						} //verbose_mode
+						break
+					case 22:
+						lap.Total_descent = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tLAP TOTAL DESCENT %d M\n", lap.Total_descent)
+						} //verbose_mode
+						break
+					case 33:
+						lap.Norm_power = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tLAP NORMALIZED POWER %d W\n", lap.Norm_power)
+						} //verbose_mode
+						break
+					case 34:
+						lap.Left_right_balance_100 = (float64(binary.LittleEndian.Uint16(v[0:val.size])) / 65535) * 100
+						if verbose_mode {
+							fmt.Printf("\tLAP LEFT RIGHT BALANCE %1.2f Percent (0 = left, 50 = center, 100 = right) \n", lap.Left_right_balance_100) //needs verifing!
+						} //verbose_mode
+						break
+					case 0:
+						temp, _ := binary.Uvarint(v[0:1])
+						lap.Event = maps.Event(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tLAP EVENT: %s\n", lap.Event)
+						} //verbose_mode
+						break
+					case 1:
+						temp, _ := binary.Uvarint(v[0:1])
+						lap.Event_type = maps.Event_type(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tLAP EVENT TYPE: %s\n", lap.Event_type)
+						} //verbose_mode
+						break
+					case 15:
+						temp, _ := binary.Uvarint(v[0:1])
+						lap.Avg_heart_rate = uint8(temp)
+						if verbose_mode {
+							fmt.Printf("\tLAP AVERAGE HEART RATE: %d BPM\n", lap.Avg_heart_rate)
+						} //verbose_mode
+						break
+					case 16:
+						temp, _ := binary.Uvarint(v[0:1])
+						lap.Max_heart_rate = uint8(temp)
+						if verbose_mode {
+							fmt.Printf("\tLAP MAX HEART RATE: %d BPM\n", lap.Max_heart_rate)
+						} //verbose_mode
+						break
+					case 17:
+						temp, _ := binary.Uvarint(v[0:1])
+						lap.Avg_cadence = uint8(temp)
+						if verbose_mode {
+							fmt.Printf("\tLAP AVERAGE CADENCE: %d RPM\n", lap.Avg_cadence)
+						} //verbose_mode
+						break
+					case 18:
+						temp, _ := binary.Uvarint(v[0:1])
+						lap.Max_cadence = uint8(temp)
+						if verbose_mode {
+							fmt.Printf("\tLAP MAX CADENCE: %d RPM\n", lap.Max_cadence)
+						} //verbose_mode
+						break
+					case 23:
+						temp, _ := binary.Uvarint(v[0:1])
+						lap.Intensity = uint8(temp)
+						if verbose_mode {
+							fmt.Printf("\tLAP INTENSITY: %d \n", lap.Intensity)
+						} //verbose_mode
+						break
+
+					}
+
+				}
+				fitFile.Laps = append(fitFile.Laps, lap)
+				//def_message.field_defs = nil
+				k = skip(k, uint64(sumRecordsDataSize))
 				break
 
 			case 20: //Record!!!
@@ -453,50 +687,78 @@ func Parse(filename string) FitFile {
 					switch val.field_definition_number {
 					case 253:
 						record.Timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
-						t := time.Unix(record.Timestamp, 0)                                             //debug
-						fmt.Printf("\tRECORD TIMESTAMP: %d (rectified) %v\n", record.Timestamp, t)      //debug
+						t := time.Unix(record.Timestamp, 0)                                             //verbose_mode
+						if verbose_mode {
+							fmt.Printf("\tRECORD TIMESTAMP: %d (rectified) %v\n", record.Timestamp, t)
+						} //verbose_mode
 						break
 					case 0:
 						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
-						record.Position_lat = semicircles * (180 / math.Pow(2, 31))
-						fmt.Printf("\tLAT: %f °\n", record.Position_lat) //debug
+						record.Position_lat = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tLAT: %f°\n", record.Position_lat)
+						} //verbose_mode
 						break
 					case 1:
 						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
-						record.Position_long = semicircles * (180 / math.Pow(2, 31))
-						fmt.Printf("\tLON: %f °\n", record.Position_long) //debug
+						record.Position_long = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tLON: %f°\n", record.Position_long)
+						} //verbose_mode
 						break
 					case 2:
 						record.Altitude = (float64(binary.LittleEndian.Uint16(v[0:val.size])) / 5) - 500
-						fmt.Printf("\tALTITUDE: %f M\n", record.Altitude) //debug
+						if verbose_mode {
+							fmt.Printf("\tALTITUDE: %f M\n", record.Altitude)
+						} //verbose_mode
 						break
 					case 3:
 						temp, _ := binary.Uvarint(v[0:val.size])
 						record.Heart_rate = uint8(temp)
-						fmt.Printf("\tHEART RATE: %d BPM\n", record.Heart_rate) //debug
+						if verbose_mode {
+							fmt.Printf("\tHEART RATE: %d BPM\n", record.Heart_rate)
+						} //verbose_mode
 						break
 					case 4:
 						temp, _ := binary.Uvarint(v[0:val.size])
 						record.Cadence = uint8(temp)
-						fmt.Printf("\tCADENCE: %d RPM\n", record.Cadence) //debug
+						if verbose_mode {
+							fmt.Printf("\tCADENCE: %d RPM\n", record.Cadence)
+						} //verbose_mode
 						break
 					case 5:
 						record.Distance = float64(binary.LittleEndian.Uint32(v[0:val.size])) / 100
-						fmt.Printf("\tDISTANCE: %f M\n", record.Distance) //debug
+						if verbose_mode {
+							fmt.Printf("\tDISTANCE: %f M\n", record.Distance)
+						} //verbose_mode
 						break
 					case 6:
 						record.Speed = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 1000
-						fmt.Printf("\tSPEED: %f M/S\n", record.Speed) //debug
+						if verbose_mode {
+							fmt.Printf("\tSPEED: %f M/S\n", record.Speed)
+						} //verbose_mode
 						break
 					case 7:
 						record.Power = binary.LittleEndian.Uint16(v[0:val.size])
-						fmt.Printf("\tPOWER: %d W\n", record.Power) //debug
+						if verbose_mode {
+							fmt.Printf("\tPOWER: %d W\n", record.Power)
+						} //verbose_mode
 						break
 					case 13:
 						temp, _ := binary.Uvarint(v[0:val.size])
 						record.Temperature = int8(temp)
-						fmt.Printf("\tTEMP: %d °C\n", record.Temperature) //debug
+						if verbose_mode {
+							fmt.Printf("\tTEMP: %d°C\n", record.Temperature)
+						} //verbose_mode
 						break
+						//not yet implemented but found in struct - see profile.xslx of fit sdk
+						/*
+							11 - Time_from_course          int32
+							8  - Compressed_speed_distance uint8
+							9  - Grade                     int16
+							10 - Resistance                uint8
+							12 - Cycle_length              uint8
+						*/
 
 					}
 
@@ -516,23 +778,31 @@ func Parse(filename string) FitFile {
 					switch val.field_definition_number {
 					case 253:
 						event.Timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
-						t := time.Unix(event.Timestamp, 0)                                             //debug
-						fmt.Printf("\tEVENT TIMESTAMP: %d (rectified) %v\n", event.Timestamp, t)       //debug
+						t := time.Unix(event.Timestamp, 0)
+						if verbose_mode {
+							fmt.Printf("\tEVENT TIMESTAMP: %d (rectified) %v\n", event.Timestamp, t)
+						} //verbose_mode
 						break
 					case 4:
 						temp, _ := binary.Uvarint(v[0:1])
 						event.Time_trigger = maps.Time_trigger(uint64(temp))
-						fmt.Printf("\tEVENT TIME TRIGGER: %s\n", event.Time_trigger) //debug
+						if verbose_mode {
+							fmt.Printf("\tEVENT TIME TRIGGER: %s\n", event.Time_trigger)
+						} //verbose_mode
 						break
 					case 1:
 						temp, _ := binary.Uvarint(v[0:1])
 						event.Event_type = maps.Event_type(uint64(temp))
-						fmt.Printf("\tEVENT TYPE: %s\n", event.Event_type) //debug
+						if verbose_mode {
+							fmt.Printf("\tEVENT TYPE: %s\n", event.Event_type)
+						} //verbose_mode
 						break
 					case 0:
 						temp, _ := binary.Uvarint(v[0:1])
 						event.Event = maps.Event(uint64(temp))
-						fmt.Printf("\tEVENT: %s\n", event.Event) //debug
+						if verbose_mode {
+							fmt.Printf("\tEVENT: %s\n", event.Event)
+						} //verbose_mode
 					}
 
 				}
@@ -550,20 +820,26 @@ func Parse(filename string) FitFile {
 					switch val.field_definition_number {
 					case 0:
 						fitFile.FileCreator.Software_version = binary.LittleEndian.Uint16(v[0:val.size])
-						fmt.Printf("\tSOFTWARE VERSION: %d\n", binary.LittleEndian.Uint16(v[0:val.size])) //debug
+						if verbose_mode {
+							fmt.Printf("\tSOFTWARE VERSION: %d\n", binary.LittleEndian.Uint16(v[0:val.size]))
+						} //verbose_mode
 						break
 					case 1:
 						fitFile.FileCreator.Hardware_version = v[0]
-						fmt.Printf("\tHARDWARE VERSION: %d\n", v[0]) //debug
+						if verbose_mode {
+							fmt.Printf("\tHARDWARE VERSION: %d\n", v[0])
+						} //verbose_mode
 					}
 				}
 				//def_message.field_defs = nil
 				k = skip(k, uint64(sumRecordsDataSize))
 				break
 
-			//TODO: need to add the remaining cases
+			//TODO: add the remaining cases - the default allows the appropriate number bytes to be skipped for unknown data records
 			default:
-				fmt.Println("\t>> UNKNOWN FIELD")
+				if verbose_mode {
+					fmt.Println("\t>> UNKNOWN RECORD")
+				} //verbose_mode
 				var sumRecordsDataSize int
 				for _, val := range definition[uint64(localMsgType)].field_defs {
 					sumRecordsDataSize += val.size
@@ -579,7 +855,9 @@ func Parse(filename string) FitFile {
 }
 func skip(iter, inc uint64) uint64 {
 	iter += inc
-	fmt.Printf("\nSKIPPING %s RECORD LENGTH OF %d BYTES >>\n=====================================================================\n", section, inc)
+	if verbose_mode {
+		fmt.Printf("\nSKIPPING %s RECORD LENGTH OF %d BYTES >>\n=====================================================================\n", section, inc)
+	} //verbose_mode
 	return iter
 }
 
@@ -604,4 +882,10 @@ func calc_crc(char uint8) {
 	tmp = crc_table[crc&0xF]
 	crc = (crc >> 4) & 0x0FFF
 	crc = crc ^ tmp ^ crc_table[(char>>4)&0xF]
+}
+
+//converts semicircles to degrees
+func semicircles_to_degrees(semicircles float64) float64 {
+	semicircles = semicircles * (180 / math.Pow(2, 31))
+	return semicircles
 }
