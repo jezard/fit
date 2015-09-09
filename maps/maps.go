@@ -237,6 +237,77 @@ func Manufacturer(id uint64) string {
 	return manufacturer[id]
 }
 
+func Sport(id uint64) string {
+	sport := make(map[uint64]string)
+
+	sport[id] = "UNKNOWN SPORT ID=" + strconv.Itoa(int(id))
+
+	sport[0] = "GENERIC"
+	sport[1] = "RUNNING"
+	sport[2] = "CYCLING"
+	sport[3] = "TRANSITION"
+	sport[4] = "FITNESS_EQUIPMENT"
+	sport[5] = "SWIMMING"
+	sport[6] = "BASKETBALL"
+	sport[7] = "SOCCER"
+	sport[8] = "TENNIS"
+	sport[9] = "AMERICAN_FOOTBALL"
+	sport[10] = "TRAINING"
+	sport[11] = "WALKING"
+	sport[12] = "CROSS_COUNTRY_SKIING"
+	sport[13] = "ALPINE_SKIING"
+	sport[14] = "SNOWBOARDING"
+	sport[15] = "ROWING"
+	sport[16] = "MOUNTAINEERING"
+	sport[17] = "HIKING"
+	sport[18] = "MULTISPORT"
+	sport[19] = "PADDLING"
+	sport[20] = "FLYING"
+	sport[21] = "E_BIKING"
+	sport[254] = "ALL"
+
+	return sport[id]
+}
+
+func Sub_sport(id uint64) string {
+	sub_sport := make(map[uint64]string)
+
+	sub_sport[id] = "UNKNOWN SUB SPORT ID=" + strconv.Itoa(int(id))
+
+	sub_sport[0] = "GENERIC"
+	sub_sport[1] = "TREADMILL"
+	sub_sport[2] = "STREET"
+	sub_sport[3] = "TRAIL"
+	sub_sport[4] = "TRACK"
+	sub_sport[5] = "SPIN"
+	sub_sport[6] = "INDOOR_CYCLING"
+	sub_sport[7] = "ROAD"
+	sub_sport[8] = "MOUNTAIN"
+	sub_sport[9] = "DOWNHILL"
+	sub_sport[10] = "RECUMBENT"
+	sub_sport[11] = "CYCLOCROSS"
+	sub_sport[12] = "HAND_CYCLING"
+	sub_sport[13] = "TRACK_CYCLING"
+	sub_sport[14] = "INDOOR_ROWING"
+	sub_sport[15] = "ELLIPTICAL"
+	sub_sport[16] = "STAIR_CLIMBING"
+	sub_sport[17] = "LAP_SWIMMING"
+	sub_sport[18] = "OPEN_WATER"
+	sub_sport[19] = "FLEXIBILITY_TRAINING"
+	sub_sport[20] = "STRENGTH_TRAINING"
+	sub_sport[21] = "WARM_UP"
+	sub_sport[22] = "MATCH"
+	sub_sport[23] = "EXERCISE"
+	sub_sport[24] = "CHALLENGE"
+	sub_sport[25] = "INDOOR_SKIING"
+	sub_sport[26] = "CARDIO_TRAINING"
+	sub_sport[27] = "INDOOR_WALKING"
+	sub_sport[28] = "E_BIKE_FITNESS"
+	sub_sport[254] = "ALL"
+
+	return sub_sport[id]
+}
+
 func Time_trigger(id uint64) string {
 	time_trigger := make(map[uint64]string)
 
@@ -356,4 +427,17 @@ func Ant_network(id uint64) string {
 	ant_network[3] = "PRIVATE"
 
 	return ant_network[id]
+}
+
+func Session_trigger(id uint64) string {
+	session_trigger := make(map[uint64]string)
+
+	session_trigger[id] = "UNKNOWN SESSION TRIGGER ID=" + strconv.Itoa(int(id))
+
+	session_trigger[0] = "ACTIVITY_END"
+	session_trigger[1] = "MANUAL"
+	session_trigger[2] = "AUTO_MULTI_SPORT"
+	session_trigger[3] = "FITNESS_EQUIPMENT"
+
+	return session_trigger[id]
 }

@@ -92,42 +92,60 @@ type Lap struct { //message number: 19
 	Intensity              uint8
 }
 type Session struct { //message number 18
-	timestamp             uint32
-	start_time            uint32
-	start_position_lat    int32
-	start_position_long   int32
-	total_elapsed_time    uint32
-	total_timer_time      uint32
-	total_distance        uint32
-	total_cycles          uint32
-	nec_lat               int32
-	nec_long              int32
-	swc_lat               int32
-	swc_long              int32
-	message_index         uint16
-	total_calories        uint16
-	total_fat_calories    uint16
-	avg_speed             uint16
-	max_speed             uint16
-	avg_power             uint16
-	max_power             uint16
-	total_ascent          uint16
-	total_descent         uint16
-	first_lap_index       uint16
-	num_laps              uint16
-	avg_heart_rate        uint8
-	max_heart_rate        uint8
-	avg_cadence           uint8
-	max_cadence           uint8
-	total_training_effect uint8
-	event_group           uint8
+	Timestamp                      int64
+	Start_time                     int64
+	Start_position_lat             float64
+	Start_position_long            float64
+	Total_elapsed_time             float64
+	Total_timer_time               float64
+	Total_distance                 float64
+	Total_work                     uint32
+	Total_cycles                   uint32
+	Nec_lat                        float64
+	Nec_long                       float64
+	Swc_lat                        float64
+	Swc_long                       float64
+	Message_index                  uint16
+	Total_calories                 uint16
+	Total_fat_calories             uint16
+	Avg_speed                      float64
+	Max_speed                      float64
+	Avg_power                      uint16
+	Max_power                      uint16
+	Total_ascent                   uint16
+	Total_descent                  uint16
+	Avg_heart_rate                 uint8
+	Max_heart_rate                 uint8
+	Avg_cadence                    uint8
+	Max_cadence                    uint8
+	Event                          string
+	Event_type                     string
+	Sport                          string
+	Sub_sport                      string
+	First_lap_index                uint16
+	Num_laps                       uint16
+	Session_trigger                string
+	Norm_power                     uint16
+	Training_stress_score          float64
+	Intensity_factor               float64
+	Left_right_balance_100         float64
+	Threshold_power                uint16
+	Avg_left_torque_effectiveness  float32
+	Avg_right_torque_effectiveness float32
+	Avg_left_pedal_smoothness      float32
+	Avg_right_pedal_smoothness     float32
+	Avg_combined_pedal_smoothness  float32
+	Time_standing                  float64
+	Stand_count                    uint16
+	Total_training_effect          float64
+	/*	That's all for now folks   */
 }
-type activity struct { //message number 34
-	timestamp        uint32
-	total_timer_time uint32
-	local_timestamp  uint32
-	num_sessions     uint16
-	event_group      uint8
+type Activity struct { //message number 34
+	Timestamp        uint32
+	Total_timer_time uint32
+	Local_timestamp  uint32
+	Num_sessions     uint16
+	Event_group      uint8
 }
 type FitFile struct {
 	FileId      File_id
@@ -136,8 +154,8 @@ type FitFile struct {
 	Events      []Event
 	Records     []Record
 	Laps        []Lap
-	//Session  session
-	//Activity activity
+	Sessions    []Session
+	Activity    Activity
 }
 
 var crc uint16
@@ -475,6 +493,346 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 				k = skip(k, uint64(sumRecordsDataSize)) //move the reader to the end of the record data
 				break
 
+			case 18: //session
+				var session Session
+				var sumRecordsDataSize int
+				for _, val := range definition[uint64(localMsgType)].field_defs {
+					sumRecordsDataSize += val.size
+					v := make([]byte, val.size)
+					r.ReadAt(v, int64(headerSize+k+val.offset+1))
+					switch val.field_definition_number {
+					case 253:
+						session.Timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
+						t := time.Unix(session.Timestamp, 0)
+						if verbose_mode {
+							fmt.Printf("\tSESSION TIMESTAMP: %d (rectified) %v\n", session.Timestamp, t)
+						} //verbose_mode
+						break
+					case 0:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Event = maps.Event(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tSESSION EVENT: %s\n", session.Event)
+						} //verbose_mode
+						break
+					case 1:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Event_type = maps.Event_type(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tSESSION EVENT TYPE: %s\n", session.Event_type)
+						} //verbose_mode
+						break
+					case 2:
+						session.Start_time = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
+						t := time.Unix(session.Start_time, 0)
+						if verbose_mode {
+							fmt.Printf("\tSESSION START TIME: %d (rectified) %v\n", session.Start_time, t)
+						} //verbose_mode
+						break
+					case 3:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						session.Start_position_lat = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tSESSION START LAT: %f°\n", session.Start_position_lat)
+						} //verbose_mode
+						break
+					case 4:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						session.Start_position_long = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tSESSION START LON: %f°\n", session.Start_position_long)
+						} //verbose_mode
+						break
+					case 5:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Sport = maps.Sport(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tSESSION SPORT: %s\n", session.Sport)
+						} //verbose_mode
+						break
+					case 6:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Sub_sport = maps.Sub_sport(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tSESSION SUB SPORT: %s\n", session.Sub_sport)
+						} //verbose_mode
+						break
+					case 7:
+						session.Total_elapsed_time = float64(binary.LittleEndian.Uint32(v[0:val.size])) / 1000
+						if verbose_mode {
+							fmt.Printf("\tSESSION TOTAL ELAPSED TIME: %fs\n", session.Total_elapsed_time)
+						} //verbose_mode
+						break
+					case 8:
+						session.Total_timer_time = float64(binary.LittleEndian.Uint32(v[0:val.size])) / 1000
+						if verbose_mode {
+							fmt.Printf("\tSESSION TOTAL TIMER TIME: %fs\n", session.Total_timer_time)
+						} //verbose_mode
+						break
+					case 9:
+						session.Total_distance = float64(binary.LittleEndian.Uint32(v[0:val.size])) / 100
+						if verbose_mode {
+							fmt.Printf("\tSESSION TOTAL DISTANCE: %f M\n", session.Total_distance)
+						} //verbose_mode
+						break
+					case 10:
+						session.Total_cycles = binary.LittleEndian.Uint32(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION TOTAL CYCLES: %d Cycles\n", session.Total_cycles)
+						} //verbose_mode
+						break
+					case 11:
+						session.Total_calories = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION TOTAL CALORIES: %d Kcal\n", session.Total_calories)
+						} //verbose_mode
+						break
+					case 13:
+						session.Total_fat_calories = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION TOTAL FAT CALORIES: %d Kcal\n", session.Total_fat_calories)
+						} //verbose_mode
+						break
+					case 14:
+						session.Avg_speed = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 1000
+						if verbose_mode {
+							fmt.Printf("\tSESSION AVERAGE SPEED: %f M/S\n", session.Avg_speed)
+						} //verbose_mode
+						break
+					case 15:
+						session.Max_speed = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 1000
+						if verbose_mode {
+							fmt.Printf("\tSESSION MAX SPEED: %f M/S\n", session.Max_speed)
+						} //verbose_mode
+						break
+					case 16:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Avg_heart_rate = uint8(temp)
+						if verbose_mode {
+							fmt.Printf("\tSESSION AVERAGE HEART RATE: %d BPM\n", session.Avg_heart_rate)
+						} //verbose_mode
+						break
+					case 17:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Max_heart_rate = uint8(temp)
+						if verbose_mode {
+							fmt.Printf("\tSESSION MAX HEART RATE: %d BPM\n", session.Max_heart_rate)
+						} //verbose_mode
+						break
+					case 18:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Avg_cadence = uint8(temp)
+						if verbose_mode {
+							fmt.Printf("\tSESSION AVERAGE CADENCE: %d RPM\n", session.Avg_cadence)
+						} //verbose_mode
+						break
+					case 19:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Max_cadence = uint8(temp)
+						if verbose_mode {
+							fmt.Printf("\tSESSION MAX CADENCE: %d RPM\n", session.Max_cadence)
+						} //verbose_mode
+						break
+					case 20:
+						session.Avg_power = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION AVERAGE POWER %d W\n", session.Avg_power)
+						} //verbose_mode
+						break
+					case 21:
+						session.Max_power = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION MAX POWER %d W\n", session.Max_power)
+						} //verbose_mode
+						break
+					case 22:
+						session.Total_ascent = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION TOTAL ASCENT %d M\n", session.Total_ascent)
+						} //verbose_mode
+						break
+					case 23:
+						session.Total_descent = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION TOTAL DESCENT %d M\n", session.Total_descent)
+						} //verbose_mode
+						break
+					case 24:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Total_training_effect = float64(temp)
+						if verbose_mode {
+							fmt.Printf("\tSESSION TOTAL TRAINING EFFECT %1.2f\n", session.Total_training_effect)
+						} //verbose_mode
+						break
+					case 48:
+						session.Total_work = binary.LittleEndian.Uint32(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION TOTAL WORK: %d J\n", session.Total_work)
+						} //verbose_mode
+						break
+					case 254:
+						session.Message_index = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION MESSAGE INDEX: %d\n", session.Message_index)
+						} //verbose_mode
+						break
+					case 25:
+						session.First_lap_index = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION FIRST LAP INDEX: %d\n", session.First_lap_index)
+						} //verbose_mode
+						break
+					case 26:
+						session.Num_laps = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION NUM LAPS: %d\n", session.Num_laps)
+						} //verbose_mode
+						break
+					case 27:
+						break
+					case 28:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Session_trigger = maps.Session_trigger(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tSESSION TRIGGER: %s \n", session.Session_trigger)
+						} //verbose_mode
+						break
+					case 29:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						session.Nec_lat = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tSESSION NEC LAT: %f°\n", session.Nec_lat)
+						} //verbose_mode
+						break
+					case 30:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						session.Nec_long = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tSESSION NEC LON: %f°\n", session.Nec_long)
+						} //verbose_mode
+						break
+					case 31:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						session.Swc_lat = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tSESSION SWC LAT: %f°\n", session.Swc_lat)
+						} //verbose_mode
+						break
+					case 32:
+						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						session.Swc_long = semicircles_to_degrees(semicircles)
+						if verbose_mode {
+							fmt.Printf("\tSESSION SWC LON: %f°\n", session.Swc_long)
+						} //verbose_mode
+						break
+					case 34:
+						session.Norm_power = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION NORMALIZED POWER %d W\n", session.Norm_power)
+						} //verbose_mode
+						break
+					case 35:
+						session.Training_stress_score = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 10
+						if verbose_mode {
+							fmt.Printf("\tSESSION TRAINING STRESS SCORE %1.2f TSS\n", session.Training_stress_score)
+						} //verbose_mode
+						break
+					case 36:
+						session.Intensity_factor = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 1000
+						if verbose_mode {
+							fmt.Printf("\tSESSION INTENSITY FACTOR %1.2f IF\n", session.Intensity_factor)
+						} //verbose_mode
+						break
+					case 37:
+						session.Left_right_balance_100 = (float64(binary.LittleEndian.Uint16(v[0:val.size])) / 65535) * 100
+						if verbose_mode {
+							fmt.Printf("\tSESSION LEFT RIGHT BALANCE %1.2f Percent (0 = left, 50 = center, 100 = right) \n", session.Left_right_balance_100) //needs verifing!
+						} //verbose_mode
+						break
+						//37 - 44  are for swimmers
+					case 45:
+						session.Threshold_power = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION THRESHOLD POWER: %d W\n", session.Threshold_power)
+						} //verbose_mode
+						break
+					case 101:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Avg_left_torque_effectiveness = float32(temp) / 2
+						if verbose_mode {
+							fmt.Printf("\tSESSION AVG LEFT TORQUE EFFECTIVENESS: %1.2f percent\n", session.Avg_left_torque_effectiveness)
+						} //verbose_mode
+						break
+					case 102:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Avg_right_torque_effectiveness = float32(temp) / 2
+						if verbose_mode {
+							fmt.Printf("\tSESSION AVG RIGHT TORQUE EFFECTIVENESS: %1.2f percent\n", session.Avg_right_torque_effectiveness)
+						} //verbose_mode
+						break
+					case 103:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Avg_left_pedal_smoothness = float32(temp) / 2
+						if verbose_mode {
+							fmt.Printf("\tSESSION AVG LEFT PEDAL SMOOTHNESS: %1.2f percent\n", session.Avg_left_pedal_smoothness)
+						} //verbose_mode
+						break
+					case 104:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Avg_right_pedal_smoothness = float32(temp) / 2
+						if verbose_mode {
+							fmt.Printf("\tSESSION AVG RIGHT PEDAL SMOOTHNESS: %1.2f percent\n", session.Avg_right_pedal_smoothness)
+						} //verbose_mode
+						break
+					case 105:
+						temp, _ := binary.Uvarint(v[0:1])
+						session.Avg_combined_pedal_smoothness = float32(temp) / 2
+						if verbose_mode {
+							fmt.Printf("\tSESSION AVG COMBINED PEDAL SMOOTHNESS: %1.2f percent\n", session.Avg_combined_pedal_smoothness)
+						} //verbose_mode
+						break
+					case 111:
+						break
+					case 112:
+						session.Time_standing = float64(binary.LittleEndian.Uint32(v[0:val.size])) / 1000
+						if verbose_mode {
+							fmt.Printf("\tSESSION TIME STANDING: %1.2f s\n", session.Time_standing)
+						} //verbose_mode
+						break
+					case 113:
+						session.Stand_count = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSESSION STAND COUNT: %d\n", session.Stand_count)
+						} //verbose_mode
+						break
+					case 114:
+						break
+					case 115:
+						break
+					case 116:
+						break
+					case 117:
+						break
+					case 118:
+						break
+					case 119:
+						break
+					case 120:
+						break
+					case 121:
+						break
+					case 122:
+						break
+					case 123:
+						break
+					}
+					/*	That's all for now folks   */
+
+				}
+				fitFile.Sessions = append(fitFile.Sessions, session)
+				k = skip(k, uint64(sumRecordsDataSize))
+				break
+
 			case 19: //lap
 				var lap Lap
 				var sumRecordsDataSize int
@@ -670,7 +1028,6 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 							fmt.Printf("\tLAP INTENSITY: %d \n", lap.Intensity)
 						} //verbose_mode
 						break
-
 					}
 
 				}
@@ -813,20 +1170,6 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 				break
 
 			case 23: //device info
-
-				/*
-					Timestamp          uint32
-					Serial_number      uint32
-					Cum_operating_time uint32
-					Manufacturer       uint16
-					Product            uint16
-					Software_version   uint16
-					Battery_voltage    uint16
-					Device_index       uint8
-					Device_type        uint8
-					Hardware_version   uint8
-					Battery_status     uint8*
-				*/
 				var device_info Device_info
 				var sumRecordsDataSize int
 				for _, val := range definition[uint64(localMsgType)].field_defs {
