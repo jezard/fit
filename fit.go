@@ -11,31 +11,33 @@ import (
 
 type File_id struct { //message number: 0
 	Serial_number uint32
-	Time_created  int64 //not equal to the uint32 found in the fit file
-	Manufacturer  uint16
-	Product       uint16
+	Time_created  int64
+	Manufacturer  string
+	Product       string
 	Number        uint16
 	File_type     byte
 }
 type File_creator struct { //message number: 1
-	Software_version uint16
+	Software_version float64
 	Hardware_version uint8
 }
 type Device_info struct { //message number: 23
-	Timestamp          uint32
+	Timestamp          int64
 	Serial_number      uint32
 	Cum_operating_time uint32
-	Manufacturer       uint16
-	Product            uint16
-	Software_version   uint16
-	Battery_voltage    uint16
+	Manufacturer       string
+	Product            string
+	Software_version   float64
+	Battery_voltage    float64
 	Device_index       uint8
-	Device_type        uint8
+	Device_type        string
 	Hardware_version   uint8
 	Battery_status     uint8
+	Source_type        string
+	Ant_network        string
 }
 type Event struct { //message number: 21
-	Timestamp    int64 //not equal to the uint32 found in the fit file
+	Timestamp    int64
 	Time_trigger string
 	Event        string
 	Event_type   string
@@ -130,9 +132,9 @@ type activity struct { //message number 34
 type FitFile struct {
 	FileId      File_id
 	FileCreator File_creator
-	DeviceInfo  Device_info
+	DeviceInfo  []Device_info
 	Events      []Event
-	Records     []Record //these need to be array but []Record not working
+	Records     []Record
 	Laps        []Lap
 	//Session  session
 	//Activity activity
@@ -435,15 +437,15 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 							} //verbose_mode
 							break
 						case 1:
-							fitFile.FileId.Manufacturer = binary.LittleEndian.Uint16(v[0:val.size])
+							fitFile.FileId.Manufacturer = maps.Manufacturer(uint64(binary.LittleEndian.Uint16(v[0:val.size])))
 							if verbose_mode {
-								fmt.Printf("\tMANUFACTURER: %d (%s)\n", binary.LittleEndian.Uint16(v[0:val.size]), maps.Manufacturer(uint16(binary.LittleEndian.Uint16(v[0:val.size]))))
+								fmt.Printf("\tMANUFACTURER: %s\n", fitFile.FileId.Manufacturer)
 							} //verbose_mode
 							break
 						case 2:
-							fitFile.FileId.Product = binary.LittleEndian.Uint16(v[0:val.size])
+							fitFile.FileId.Product = maps.Product(uint64(binary.LittleEndian.Uint16(v[0:val.size])))
 							if verbose_mode {
-								fmt.Printf("\tPRODUCT: %d (%s)\n", binary.LittleEndian.Uint16(v[0:val.size]), maps.Product(uint16(binary.LittleEndian.Uint16(v[0:val.size]))))
+								fmt.Printf("\tPRODUCT: %s\n", fitFile.FileId.Product)
 							} //verbose_mode
 							break
 						case 3:
@@ -807,8 +809,99 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 
 				}
 				fitFile.Events = append(fitFile.Events, event)
-				//def_message.field_defs = nil
 				k = skip(k, uint64(sumRecordsDataSize))
+				break
+
+			case 23: //device info
+
+				/*
+					Timestamp          uint32
+					Serial_number      uint32
+					Cum_operating_time uint32
+					Manufacturer       uint16
+					Product            uint16
+					Software_version   uint16
+					Battery_voltage    uint16
+					Device_index       uint8
+					Device_type        uint8
+					Hardware_version   uint8
+					Battery_status     uint8*
+				*/
+				var device_info Device_info
+				var sumRecordsDataSize int
+				for _, val := range definition[uint64(localMsgType)].field_defs {
+					sumRecordsDataSize += val.size
+					v := make([]byte, val.size)
+					r.ReadAt(v, int64(headerSize+k+val.offset+1))
+					switch val.field_definition_number {
+					case 253:
+						device_info.Timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
+						t := time.Unix(device_info.Timestamp, 0)
+						if verbose_mode {
+							fmt.Printf("\tDEVICE INFO TIMESTAMP: %d (rectified) %v\n", device_info.Timestamp, t)
+						} //verbose_mode
+						break
+					case 1:
+						temp, _ := binary.Uvarint(v[0:1])
+						device_info.Device_type = maps.Device_type(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tDEVICE TYPE: %s\n", device_info.Device_type)
+						} //verbose_mode
+						break
+					case 2:
+						device_info.Manufacturer = maps.Manufacturer(uint64(binary.LittleEndian.Uint16(v[0:val.size])))
+						if verbose_mode {
+							fmt.Printf("\tMANUFACTURER: %s\n", device_info.Manufacturer)
+						} //verbose_mode
+						break
+					case 3:
+						device_info.Serial_number = binary.LittleEndian.Uint32(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tSERIAL NUMBER: %d\n", device_info.Serial_number)
+						} //verbose_mode
+						break
+					case 4:
+						device_info.Product = maps.Product(uint64(binary.LittleEndian.Uint16(v[0:val.size])))
+						if verbose_mode {
+							fmt.Printf("\tPRODUCT: %s\n", device_info.Product)
+						} //verbose_mode
+						break
+					case 5:
+						device_info.Software_version = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 100
+						if verbose_mode {
+							fmt.Printf("\tSOFTWARE VERSION: %f\n", device_info.Software_version)
+						} //verbose_mode
+						break
+					case 6:
+						device_info.Hardware_version = v[0]
+						if verbose_mode {
+							fmt.Printf("\tHARDWARE VERSION: %d\n", device_info.Hardware_version)
+						} //verbose_mode
+					case 10:
+						device_info.Battery_voltage = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 256
+						if verbose_mode {
+							fmt.Printf("\tBATTERY VOLTAGE: %f V\n", device_info.Battery_voltage)
+						} //verbose_mode
+						break
+					case 22:
+						temp, _ := binary.Uvarint(v[0:1])
+						device_info.Ant_network = maps.Ant_network(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tANT NETWORK: %s\n", device_info.Ant_network)
+						} //verbose_mode
+						break
+					case 25:
+						temp, _ := binary.Uvarint(v[0:1])
+						device_info.Source_type = maps.Source_type(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tSOURCE TYPE: %s\n", device_info.Source_type)
+						} //verbose_mode
+						break
+					}
+				}
+				fitFile.DeviceInfo = append(fitFile.DeviceInfo, device_info)
+				k = skip(k, uint64(sumRecordsDataSize))
+
 				break
 
 			case 49: //file_creator
@@ -819,9 +912,9 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 					r.ReadAt(v, int64(headerSize+k+val.offset+1))
 					switch val.field_definition_number {
 					case 0:
-						fitFile.FileCreator.Software_version = binary.LittleEndian.Uint16(v[0:val.size])
+						fitFile.FileCreator.Software_version = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 100
 						if verbose_mode {
-							fmt.Printf("\tSOFTWARE VERSION: %d\n", binary.LittleEndian.Uint16(v[0:val.size]))
+							fmt.Printf("\tSOFTWARE VERSION: %f\n", binary.LittleEndian.Uint16(v[0:val.size]))
 						} //verbose_mode
 						break
 					case 1:

@@ -1,8 +1,14 @@
 package maps
 
+import (
+	"strconv"
+)
+
 //maps
-func Product(id uint16) string {
-	product := make(map[uint16]string)
+func Product(id uint64) string {
+	product := make(map[uint64]string)
+
+	product[id] = "UNKNOWN PRODUCT ID=" + strconv.Itoa(int(id))
 
 	//products list
 	product[1] = "HRM1"
@@ -119,8 +125,10 @@ func Product(id uint16) string {
 	return product[id]
 }
 
-func Manufacturer(id uint16) string {
-	manufacturer := make(map[uint16]string)
+func Manufacturer(id uint64) string {
+	manufacturer := make(map[uint64]string)
+
+	manufacturer[id] = "UNKNOWN MANUFACTURER ID=" + strconv.Itoa(int(id))
 
 	manufacturer[1] = "GARMIN"
 	manufacturer[2] = "GARMIN_FR405_ANTFS"
@@ -232,6 +240,8 @@ func Manufacturer(id uint16) string {
 func Time_trigger(id uint64) string {
 	time_trigger := make(map[uint64]string)
 
+	time_trigger[id] = "UNKNOWN TIME TRIGGER ID=" + strconv.Itoa(int(id))
+
 	time_trigger[0] = "MANUAL"
 	time_trigger[1] = "AUTO"
 	time_trigger[2] = "FITNESS_EQUIPMENT"
@@ -241,6 +251,8 @@ func Time_trigger(id uint64) string {
 
 func Event_type(id uint64) string {
 	event_type := make(map[uint64]string)
+
+	event_type[id] = "UNKNOWN EVENT TYPE ID=" + strconv.Itoa(int(id))
 
 	event_type[0] = "START"
 	event_type[1] = "STOP"
@@ -258,6 +270,8 @@ func Event_type(id uint64) string {
 
 func Event(id uint64) string {
 	event := make(map[uint64]string)
+
+	event[id] = "UNKNOWN EVENT ID=" + strconv.Itoa(int(id))
 
 	event[0] = "TIMER"
 	event[3] = "WORKOUT"
@@ -288,4 +302,58 @@ func Event(id uint64) string {
 	event[28] = "LENGTH"
 
 	return event[id]
+}
+
+func Device_type(id uint64) string {
+	device_type := make(map[uint64]string)
+
+	device_type[id] = "UNKNOWN DEVICE TYPE ID=" + strconv.Itoa(int(id))
+
+	device_type[1] = "ANTFS"
+	device_type[11] = "BIKE_POWER"
+	device_type[12] = "ENVIRONMENT_SENSOR_LEGACY"
+	device_type[15] = "MULTI_SPORT_SPEED_DISTANCE"
+	device_type[16] = "CONTROL"
+	device_type[17] = "FITNESS_EQUIPMENT"
+	device_type[18] = "BLOOD_PRESSURE"
+	device_type[19] = "GEOCACHE_NODE"
+	device_type[20] = "LIGHT_ELECTRIC_VEHICLE"
+	device_type[25] = "ENV_SENSOR"
+	device_type[26] = "RACQUET"
+	device_type[119] = "WEIGHT_SCALE"
+	device_type[120] = "HEART_RATE"
+	device_type[121] = "BIKE_SPEED_CADENCE"
+	device_type[122] = "BIKE_CADENCE"
+	device_type[123] = "BIKE_SPEED"
+	device_type[124] = "STRIDE_SPEED_DISTANCE"
+
+	return device_type[id]
+}
+
+func Source_type(id uint64) string {
+	source_type := make(map[uint64]string)
+
+	source_type[id] = "UNKNOWN SOURCE TYPE ID=" + strconv.Itoa(int(id))
+
+	source_type[0] = "ANT"                  // External device connected with ANT
+	source_type[1] = "ANTPLUS"              // External device connected with ANT+
+	source_type[2] = "BLUETOOTH"            // External device connected with BT
+	source_type[3] = "BLUETOOTH_LOW_ENERGY" // External device connected with BLE
+	source_type[4] = "WIFI"                 // External device connected with Wifi
+	source_type[5] = "LOCAL"                // Onboard device
+
+	return source_type[id]
+}
+
+func Ant_network(id uint64) string {
+	ant_network := make(map[uint64]string)
+
+	ant_network[id] = "UNKNOWN SOURCE TYPE ID=" + strconv.Itoa(int(id))
+
+	ant_network[0] = "PUBLIC"
+	ant_network[1] = "ANTPLUS"
+	ant_network[2] = "ANTFS"
+	ant_network[3] = "PRIVATE"
+
+	return ant_network[id]
 }
