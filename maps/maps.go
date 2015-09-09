@@ -441,3 +441,14 @@ func Session_trigger(id uint64) string {
 
 	return session_trigger[id]
 }
+
+func Activity(id uint64) string {
+	activity := make(map[uint64]string)
+
+	activity[id] = "UNKNOWN ACTIVITY ID=" + strconv.Itoa(int(id))
+
+	activity[0] = "MANUAL"
+	activity[1] = "AUTO_MULTI_SPORT"
+
+	return activity[id]
+}

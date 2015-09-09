@@ -4,6 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"github.com/jezard/fit/maps"
+	"log"
 	"math"
 	"os"
 	"time"
@@ -141,11 +142,14 @@ type Session struct { //message number 18
 	/*	That's all for now folks   */
 }
 type Activity struct { //message number 34
-	Timestamp        uint32
-	Total_timer_time uint32
-	Local_timestamp  uint32
+	Timestamp        int64
 	Num_sessions     uint16
+	Total_timer_time int64
+	Local_timestamp  int64
+	Event            string
+	Event_type       string
 	Event_group      uint8
+	Type             string
 }
 type FitFile struct {
 	FileId      File_id
@@ -450,6 +454,9 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 						switch val.field_definition_number {
 						case 0:
 							fitFile.FileId.File_type = v[0]
+							if fitFile.FileId.File_type != 4 {
+								log.Fatal("ERROR: This is not an activity type file")
+							}
 							if verbose_mode {
 								fmt.Printf("\tFILE TYPE: %d\n", v[0])
 							} //verbose_mode
@@ -491,6 +498,60 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 				glob_msge_num_0_read = true
 				//def_message.field_defs = nil
 				k = skip(k, uint64(sumRecordsDataSize)) //move the reader to the end of the record data
+				break
+
+			case 34: //Activity
+				var activity Activity
+				var sumRecordsDataSize int
+				for _, val := range definition[uint64(localMsgType)].field_defs {
+					sumRecordsDataSize += val.size
+					v := make([]byte, val.size)
+					r.ReadAt(v, int64(headerSize+k+val.offset+1))
+					switch val.field_definition_number {
+					case 253:
+						activity.Timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
+						t := time.Unix(activity.Timestamp, 0)
+						if verbose_mode {
+							fmt.Printf("\tACTIVITY TIMESTAMP: %d (rectified) %v\n", activity.Timestamp, t)
+						} //verbose_mode
+						break
+					case 1:
+						activity.Num_sessions = binary.LittleEndian.Uint16(v[0:val.size])
+						if verbose_mode {
+							fmt.Printf("\tACTIVITY NUM SESSIONS: %d\n", activity.Num_sessions)
+						} //verbose_mode
+					case 2:
+						temp, _ := binary.Uvarint(v[0:1])
+						activity.Type = maps.Activity(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tACTIVITY TYPE: %s\n", activity.Type)
+						} //verbose_mode
+						break
+					case 3:
+						temp, _ := binary.Uvarint(v[0:1])
+						activity.Event = maps.Event(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tACTIVITY EVENT: %s\n", activity.Event)
+						} //verbose_mode
+						break
+					case 4:
+						temp, _ := binary.Uvarint(v[0:1])
+						activity.Event_type = maps.Event_type(uint64(temp))
+						if verbose_mode {
+							fmt.Printf("\tACTIVITY EVENT TYPE: %s\n", activity.Event_type)
+						} //verbose_mode
+						break
+					case 5:
+						activity.Local_timestamp = int64(binary.LittleEndian.Uint32(v[0:val.size])) + 631065600 //need to add on unix timestamp for 31/12/1989 to get up to correct date (We can still get up to 2038)
+						t := time.Unix(activity.Local_timestamp, 0)
+						if verbose_mode {
+							fmt.Printf("\tACTIVITY LOCAL TIMESTAMP: %d (rectified) %v\n", activity.Local_timestamp, t)
+						} //verbose_mode
+						break
+					}
+				}
+				//def_message.field_defs = nil
+				k = skip(k, uint64(sumRecordsDataSize))
 				break
 
 			case 18: //session
