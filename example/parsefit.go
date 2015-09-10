@@ -1,3 +1,8 @@
+/**
+* From Go-MultipleFileUpload @
+*
+* https://github.com/sanatgersappa/Go-MultipleFileUpload/blob/master/app.go
+**/
 package main
 
 //$ cd c:go/src/github.com/jezard/fit/example
