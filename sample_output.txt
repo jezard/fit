@@ -1,5 +1,5 @@
 map[Content-Disposition:[form-data; name="myfiles"; filename="Epix-PowerTap-P1-2015-07-27-17-02-15.fit"] Content-Type:[application/octet-stream]]
-FUNCTION Parse() called: 2015-09-09 21:57:47.2351164 +0100 BST
+FUNCTION Parse() called: 2015-09-10 11:22:32.6979863 +0100 BST
 14 (Header) 2 (crc) 154070 (file size) bytes
 Header Size: 14
 protocol v.: [16]
