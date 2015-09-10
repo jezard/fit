@@ -452,3 +452,20 @@ func Activity(id uint64) string {
 
 	return activity[id]
 }
+
+func Global_message_type(id uint16) string {
+	global_message_type := make(map[uint16]string)
+
+	global_message_type[id] = "UNKNOWN GLOBAL MESSAGE TYPE ID=" + strconv.Itoa(int(id))
+
+	global_message_type[0] = "FILE_ID"
+	global_message_type[18] = "SESSION"
+	global_message_type[19] = "LAP"
+	global_message_type[20] = "RECORD"
+	global_message_type[21] = "EVENT"
+	global_message_type[23] = "DEVICE_INFO"
+	global_message_type[34] = "ACTIVITY"
+	global_message_type[49] = "FILE_CREATOR"
+
+	return global_message_type[id]
+}

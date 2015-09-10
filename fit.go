@@ -345,9 +345,9 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 
 				fmt.Printf("VAL: %b", rHead[0]) //verbose_mode
 
-				fmt.Printf(" LOCAL MESSAGE TYPE: %d", localMsgType) //verbose_mode
+				fmt.Printf(" LOCAL MESSAGE TYPE: %d (%s)", localMsgType, maps.Global_message_type(def_message.global_message_number)) //verbose_mode
 
-				fmt.Printf(" GLOB MESSAGE NUM: %d", def_message.global_message_number)
+				fmt.Printf(" GLOB MESSAGE NUM: %d", def_message.global_message_number) //verbose_mode
 
 				fmt.Printf(" FIELDS: %d", def_message.number_of_fields) //verbose_mode
 			}
@@ -1318,13 +1318,13 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 					case 0:
 						fitFile.FileCreator.Software_version = float64(binary.LittleEndian.Uint16(v[0:val.size])) / 100
 						if verbose_mode {
-							fmt.Printf("\tSOFTWARE VERSION: %f\n", binary.LittleEndian.Uint16(v[0:val.size]))
+							fmt.Printf("\tSOFTWARE VERSION: %f\n", fitFile.FileCreator.Software_version)
 						} //verbose_mode
 						break
 					case 1:
 						fitFile.FileCreator.Hardware_version = v[0]
 						if verbose_mode {
-							fmt.Printf("\tHARDWARE VERSION: %d\n", v[0])
+							fmt.Printf("\tHARDWARE VERSION: %d\n", fitFile.FileCreator.Hardware_version)
 						} //verbose_mode
 					}
 				}
