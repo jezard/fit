@@ -1,6 +1,7 @@
 package fit
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"github.com/jezard/fit/maps"
@@ -591,14 +592,14 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 						} //verbose_mode
 						break
 					case 3:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
 						session.Start_position_lat = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tSESSION START LAT: %f°\n", session.Start_position_lat)
 						} //verbose_mode
 						break
 					case 4:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
 						session.Start_position_long = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tSESSION START LON: %f°\n", session.Start_position_long)
@@ -759,28 +760,29 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 						} //verbose_mode
 						break
 					case 29:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
+
 						session.Nec_lat = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tSESSION NEC LAT: %f°\n", session.Nec_lat)
 						} //verbose_mode
 						break
 					case 30:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
 						session.Nec_long = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tSESSION NEC LON: %f°\n", session.Nec_long)
 						} //verbose_mode
 						break
 					case 31:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
 						session.Swc_lat = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tSESSION SWC LAT: %f°\n", session.Swc_lat)
 						} //verbose_mode
 						break
 					case 32:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
 						session.Swc_long = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tSESSION SWC LON: %f°\n", session.Swc_long)
@@ -917,28 +919,28 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 						} //verbose_mode
 						break
 					case 3:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
 						lap.Start_position_lat = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tLAP START LAT: %f°\n", lap.Start_position_lat)
 						} //verbose_mode
 						break
 					case 4:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
 						lap.Start_position_long = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tLAP START LON: %f°\n", lap.Start_position_long)
 						} //verbose_mode
 						break
 					case 5:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
 						lap.End_position_lat = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tLAP END LAT: %f°\n", lap.End_position_lat)
 						} //verbose_mode
 						break
 					case 6:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
 						lap.End_position_long = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tLAP END LON: %f°\n", lap.End_position_long)
@@ -1113,14 +1115,14 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 						} //verbose_mode
 						break
 					case 0:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
 						record.Position_lat = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tLAT: %f°\n", record.Position_lat)
 						} //verbose_mode
 						break
 					case 1:
-						semicircles := float64(binary.LittleEndian.Uint32(v[0:val.size])) //convert from semicircles to degrees
+						semicircles := float64(read_int32(v[0:val.size])) //convert from semicircles to degrees
 						record.Position_long = semicircles_to_degrees(semicircles)
 						if verbose_mode {
 							fmt.Printf("\tLON: %f°\n", record.Position_long)
@@ -1385,4 +1387,11 @@ func calc_crc(char uint8) {
 func semicircles_to_degrees(semicircles float64) float64 {
 	semicircles = semicircles * (180 / math.Pow(2, 31))
 	return semicircles
+}
+
+//converts a slice of bytes to a signed int32 === Function added by Craig Prevallet to allow negative latitudes - Thank you! ===
+func read_int32(data []byte) (ret int32) {
+    buf := bytes.NewBuffer(data)
+    binary.Read(buf, binary.LittleEndian, &ret)
+    return
 }
