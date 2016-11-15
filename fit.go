@@ -282,7 +282,8 @@ func Parse(filename string, show_verbose_mode bool) FitFile {
 
 	r, err := os.Open(filename)
 	check(err)
-
+	defer r.Close()
+	
 	//test to read first record header
 	rHead := make([]byte, 1)
 
